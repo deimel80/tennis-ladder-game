@@ -1,4 +1,4 @@
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v010";
 const STORAGE_DEMO_KEY = "tennis_ladder_demo_db_v010";
 
@@ -478,66 +478,88 @@ function renderLoading() {
 }
 
 function renderSetup() {
+  const players = state.lobby?.players || [];
+  const recentMatches = state.lobby?.recent_matches || [];
+
   app.innerHTML = `
     <section class="grid two">
-      <div class="card">
-        <div class="card-title-row">
-          <div>
-            <h2>Anmelden</h2>
-            <p class="muted">Melde dich mit Spielername und 4-stelliger PIN an.</p>
+      <div class="grid">
+        <div class="card">
+          <div class="card-title-row">
+            <div>
+              <h2>Rangliste</h2>
+              <p class="muted">Die aktuelle Tabelle ist öffentlich sichtbar. Zum Fordern oder Spielen bitte anmelden.</p>
+            </div>
+            <button class="btn ghost" data-action="refresh-public">Aktualisieren</button>
           </div>
-          ${state.isRemote ? "" : `<span class="pill danger">nicht zentral</span>`}
+          ${renderRankingTable(players, null, { showActions: false })}
         </div>
 
-        ${state.isRemote ? `
-          <div class="success small">Supabase ist konfiguriert. Rangliste, Forderungen und Matches werden zentral gespeichert.</div>
-        ` : `
-          <div class="notice small"><strong>Demo-Modus:</strong> Ohne Supabase-Konfiguration wird nur in diesem Browser gespeichert. Für deine Kumpel muss config.js mit Supabase-Werten gefüllt und database.sql ausgeführt werden.</div>
-        `}
+        <div class="card">
+          <div class="card-title-row">
+            <div>
+              <h2>Anmelden</h2>
+              <p class="muted">Melde dich mit Spielername und 4-stelliger PIN an.</p>
+            </div>
+            ${state.isRemote ? "" : `<span class="pill danger">nicht zentral</span>`}
+          </div>
 
-        <div class="setup-columns" style="margin-top: 16px;">
-          <form id="loginForm" class="card compact form-grid">
-            <h3>Login</h3>
-            <label class="field">
-              <span>Spielername</span>
-              <input id="loginName" autocomplete="username" placeholder="z. B. Stefan" required />
-            </label>
-            <label class="field">
-              <span>PIN</span>
-              <input id="loginPin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="1234" required />
-            </label>
-            <button class="btn primary" type="submit">Einloggen</button>
-            ${state.isRemote ? "" : `<p class="muted small">Demo-Spieler: Stefan, Alex, Ben, Chris, Daniel, Markus · PIN jeweils 1234</p>`}
-          </form>
+          ${state.isRemote ? `
+            <div class="success small">Supabase ist konfiguriert. Rangliste, Forderungen und Matches werden zentral gespeichert.</div>
+          ` : `
+            <div class="notice small"><strong>Demo-Modus:</strong> Ohne Supabase-Konfiguration wird nur in diesem Browser gespeichert. Für deine Kumpel muss config.js mit Supabase-Werten gefüllt und database.sql ausgeführt werden.</div>
+          `}
 
-          <form id="registerForm" class="card compact form-grid">
-            <h3>Neuen Spieler anlegen</h3>
-            <label class="field">
-              <span>Spielername</span>
-              <input id="registerName" autocomplete="username" placeholder="Name" required />
-            </label>
-            <label class="field">
-              <span>4-stellige PIN</span>
-              <input id="registerPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="0000" required />
-            </label>
-            <button class="btn" type="submit">Spieler erstellen</button>
-          </form>
+          <div class="setup-columns" style="margin-top: 16px;">
+            <form id="loginForm" class="card compact form-grid">
+              <h3>Login</h3>
+              <label class="field">
+                <span>Spielername</span>
+                <input id="loginName" autocomplete="username" placeholder="z. B. Stefan" required />
+              </label>
+              <label class="field">
+                <span>PIN</span>
+                <input id="loginPin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="1234" required />
+              </label>
+              <button class="btn primary" type="submit">Einloggen</button>
+              ${state.isRemote ? "" : `<p class="muted small">Demo-Spieler: Stefan, Alex, Ben, Chris, Daniel, Markus · PIN jeweils 1234</p>`}
+            </form>
+
+            <form id="registerForm" class="card compact form-grid">
+              <h3>Neuen Spieler anlegen</h3>
+              <label class="field">
+                <span>Spielername</span>
+                <input id="registerName" autocomplete="username" placeholder="Name" required />
+              </label>
+              <label class="field">
+                <span>4-stellige PIN</span>
+                <input id="registerPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="0000" required />
+              </label>
+              <button class="btn" type="submit">Spieler erstellen</button>
+            </form>
+          </div>
         </div>
       </div>
 
-      <aside class="card">
-        <h2>Regelstand v${VERSION}</h2>
-        <ul class="log-list small">
-          <li class="log-item"><strong>Match:</strong> Match-Tiebreak bis 10, Sieg immer mit 2 Punkten Vorsprung.</li>
-          <li class="log-item"><strong>Aufschlag:</strong> Münzwurf entscheidet den ersten Aufschläger. Danach 1–2–2–2.</li>
-          <li class="log-item"><strong>Risiko:</strong> Jeder Schlag nutzt 0–150 %. Viel Risiko erzeugt mehr Druck, aber auch mehr Fehler.</li>
-          <li class="log-item"><strong>Lesen:</strong> Wenn der Gegner den Schlag exakt erwartet, steigen Return- und Konterchancen deutlich.</li>
-          <li class="log-item"><strong>Rally:</strong> Je länger der Ballwechsel, desto höher die Fehlerwahrscheinlichkeit.</li>
-        </ul>
+      <aside class="grid">
+        <div class="card compact">
+          <h2>Regelstand v${VERSION}</h2>
+          <ul class="log-list small">
+            <li class="log-item"><strong>Match:</strong> Match-Tiebreak bis 10, Sieg immer mit 2 Punkten Vorsprung.</li>
+            <li class="log-item"><strong>Aufschlag:</strong> Münzwurf entscheidet den ersten Aufschläger. Danach 1–2–2–2.</li>
+            <li class="log-item"><strong>Risiko:</strong> Jeder Schlag nutzt 0–150 %. Viel Risiko erzeugt mehr Druck, aber auch mehr Fehler.</li>
+            <li class="log-item"><strong>Lesen:</strong> Wenn der Gegner den Schlag exakt erwartet, steigen Return- und Konterchancen deutlich.</li>
+            <li class="log-item"><strong>Rally:</strong> Je länger der Ballwechsel, desto höher die Fehlerwahrscheinlichkeit.</li>
+          </ul>
+        </div>
+
+        <div class="card compact">
+          <h2>Letzte Matches</h2>
+          ${renderRecentMatches(recentMatches)}
+        </div>
       </aside>
     </section>`;
 }
-
 function renderLobby() {
   const currentId = state.session?.player?.id;
   const players = state.lobby?.players || [];
@@ -598,7 +620,8 @@ function renderLobby() {
     </section>`;
 }
 
-function renderRankingTable(players, currentId) {
+function renderRankingTable(players, currentId, options = {}) {
+  const showActions = options.showActions !== false;
   const rows = players.map(player => {
     const isSelf = player.id === currentId;
     return `
@@ -609,7 +632,7 @@ function renderRankingTable(players, currentId) {
         <td>${player.losses}</td>
         <td>${player.points_for}:${player.points_against}</td>
         <td>
-          ${isSelf ? "" : `
+          ${!showActions ? `<span class="muted small">Login nötig</span>` : isSelf ? "" : `
             <div class="btn-row">
               <button class="btn primary" data-action="challenge" data-player-id="${player.id}">Fordern</button>
               <button class="btn" data-action="direct-match" data-player-id="${player.id}">Direkt-Match</button>
@@ -1196,7 +1219,7 @@ app.addEventListener("click", event => {
   const challengeId = button.dataset.challengeId;
 
   safeAction(async () => {
-    if (action === "refresh") {
+    if (action === "refresh" || action === "refresh-public") {
       await refreshLobby(true);
       render();
     }

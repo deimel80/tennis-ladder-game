@@ -1,11 +1,11 @@
-# Tennis Ladder Match-Tiebreak v0.1.0
+# Tennis Ladder Match-Tiebreak v0.1.1
 
 Ein textbasiertes Tennis-Forderungsspiel für GitHub Pages mit zentraler Speicherung über Supabase.
 
 ## Enthalten
 
 ```text
-tennis-ladder-game-v0.1.0/
+tennis-ladder-game-v0.1.1/
 ├─ index.html
 ├─ style.css
 ├─ app.js
@@ -15,7 +15,7 @@ tennis-ladder-game-v0.1.0/
 └─ README.md
 ```
 
-## Funktionen in v0.1.0
+## Funktionen in v0.1.1
 
 - Spieler mit Name + 4-stelliger PIN anlegen
 - Spieler anmelden
