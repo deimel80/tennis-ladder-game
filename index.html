@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tennis Ladder Match-Tiebreak</title>
+  <meta name="description" content="Textbasiertes Tennis-Forderungsspiel mit Match-Tiebreak, Rangliste und Supabase-Speicherung." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">Tennis Ladder</p>
+      <h1>Match-Tiebreak Arena</h1>
+      <p class="subtitle">Forderungen, Rangliste und textbasierte Spielzüge bis 10 Punkte.</p>
+    </div>
+    <div class="header-meta">
+      <span id="versionBadge" class="version-badge">v0.1.0</span>
+      <span id="connectionBadge" class="connection-badge pending">Prüfe Verbindung</span>
+    </div>
+  </header>
+
+  <main id="app" class="app-shell">
+    <section class="card loading-card">
+      <div class="spinner" aria-hidden="true"></div>
+      <div>
+        <h2>Spiel wird geladen</h2>
+        <p>Konfiguration und Rangliste werden vorbereitet.</p>
+      </div>
+    </section>
+  </main>
+
+  <template id="toastTemplate">
+    <div class="toast"></div>
+  </template>
+  <div id="toastHost" class="toast-host" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
