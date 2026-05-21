@@ -1,4 +1,4 @@
-const VERSION = "0.2.1";
+const VERSION = "0.3.0";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -76,7 +76,11 @@ function normalizePlayer(raw) {
     points_for: Number(raw.points_for || 0),
     points_against: Number(raw.points_against || 0),
     is_approved: Boolean(raw.is_approved),
-    is_admin: Boolean(raw.is_admin)
+    is_admin: Boolean(raw.is_admin),
+    can_challenge: raw.can_challenge === undefined ? null : Boolean(raw.can_challenge),
+    challenge_block_reason: raw.challenge_block_reason || "",
+    max_challenge_jump: raw.max_challenge_jump == null ? null : Number(raw.max_challenge_jump),
+    quick_match_allowed: raw.quick_match_allowed === undefined ? null : Boolean(raw.quick_match_allowed)
   };
 }
 
@@ -218,6 +222,10 @@ class RemoteStore {
     return this.normalizeLiveMatch(data);
   }
 
+  async startQuickMatch(opponentId) {
+    return this.startLiveMatch({ opponentId, challengeId: null });
+  }
+
   async getLiveMatch(matchId) {
     const { data, error } = await this.client.rpc("get_live_match", {
       p_session_token: state.session?.token,
@@ -271,7 +279,8 @@ class RemoteStore {
       pending_players: (payload.pending_players || []).map(normalizePlayer),
       challenges: payload.challenges || [],
       recent_matches: payload.recent_matches || [],
-      live_matches: payload.live_matches || []
+      live_matches: payload.live_matches || [],
+      rules: payload.rules || {}
     };
   }
 
@@ -283,6 +292,7 @@ class RemoteStore {
       player_b: normalizePlayer(payload.player_b),
       score_a: Number(payload.score_a || 0),
       score_b: Number(payload.score_b || 0),
+      match_type: payload.match_type || "ranked",
       rally_count: Number(payload.rally_count || 0),
       point_log: payload.point_log || [],
       match_log: payload.match_log || [],
@@ -451,8 +461,8 @@ function renderSetup() {
         <div class="card compact">
           <h2>Regelstand v${VERSION}</h2>
           <ul class="log-list small">
-            <li class="log-item"><strong>Testmodus:</strong> Wer zuerst ${WIN_POINTS} Punkte hat, gewinnt. Kein 2-Punkte-Abstand.</li>
-            <li class="log-item"><strong>Live:</strong> Jeder Spieler sieht nur seine eigene Eingabe. Danach wartet das Spiel auf den Gegner.</li>
+            <li class="log-item"><strong>Rangliste:</strong> Forderungen sind begrenzt: Top 3 nur 1 Platz, Top 10 maximal 2 Plätze, danach maximal 5 Plätze nach oben.</li>
+            <li class="log-item"><strong>Kurzspiel:</strong> Direktes Live-Spiel ohne Ranglisten- oder Statistikänderung.</li>
             <li class="log-item"><strong>Timeout:</strong> Pro Eingabe laufen ${TURN_SECONDS / 60} Minuten. Danach kann der Gegner Timeout-Sieg reklamieren.</li>
           </ul>
         </div>
@@ -569,9 +579,10 @@ function renderLobby() {
           <h2>Aktuelle Regeln</h2>
           <ul class="log-list small">
             <li class="log-item"><strong>Gewinn:</strong> erster Spieler mit ${WIN_POINTS} Punkten.</li>
-            <li class="log-item"><strong>Aufschlag:</strong> Münzwurf, dann 1–2–2 wie im Match-Tiebreak.</li>
-            <li class="log-item"><strong>Warten:</strong> ${TURN_SECONDS / 60} Minuten je Eingabe, dann Timeout-Sieg möglich.</li>
-            <li class="log-item"><strong>Spieler:</strong> neue Registrierungen müssen vom Admin freigegeben werden.</li>
+            <li class="log-item"><strong>Fordern:</strong> Top 3 nur direkt davor, Top 10 maximal 2 Plätze, danach maximal 5 Plätze nach oben.</li>
+            <li class="log-item"><strong>Sperre:</strong> pro Spieler nur eine aktive Forderung oder ein laufendes Live-Spiel.</li>
+            <li class="log-item"><strong>Ablauf:</strong> offene Forderung 24 Stunden, angenommene Forderung 30 Minuten bis Spielstart.</li>
+            <li class="log-item"><strong>Kurzspiel:</strong> zählt nicht für Rangliste und Statistik.</li>
           </ul>
         </div>
         <div class="card compact">
@@ -614,6 +625,8 @@ function renderRankingTable(players, currentId, options = {}) {
   const showActions = options.showActions !== false;
   const rows = players.map(player => {
     const isSelf = player.id === currentId;
+    const canChallenge = player.can_challenge === true;
+    const challengeReason = player.challenge_block_reason || "Forderung aktuell nicht möglich.";
     return `
       <tr>
         <td><span class="rank">${player.rank_position ?? "-"}</span></td>
@@ -622,10 +635,12 @@ function renderRankingTable(players, currentId, options = {}) {
         <td>${player.losses}</td>
         <td>${player.points_for}:${player.points_against}</td>
         <td>
-          ${!showActions ? `<span class="muted small">Login nötig</span>` : isSelf ? "" : `
+          ${!showActions ? `<span class="muted small">Login nötig</span>` : isSelf ? `<span class="muted small">-</span>` : `
             <div class="btn-row">
-              <button class="btn primary" data-action="challenge" data-player-id="${player.id}">Fordern</button>
-            </div>`}
+              <button class="btn primary" data-action="challenge" data-player-id="${player.id}" ${canChallenge ? "" : "disabled"} title="${escapeHtml(challengeReason)}">Fordern</button>
+              <button class="btn" data-action="quick-match" data-player-id="${player.id}">Kurzspiel</button>
+            </div>
+            ${canChallenge ? "" : `<div class="muted small">${escapeHtml(challengeReason)}</div>`}`}
         </td>
       </tr>`;
   }).join("");
@@ -651,7 +666,7 @@ function renderLiveMatches(liveMatches, currentId) {
           <li class="challenge-item">
             <div class="challenge-title">
               <span>${escapeHtml(match.player_a_name)} ${match.score_a}:${match.score_b} ${escapeHtml(match.player_b_name)}</span>
-              <span class="status ${match.status}">${myTurn ? "du bist dran" : statusLabel(match.status)}</span>
+              <span class="status ${match.status}">${match.match_type === "quick" ? "Kurzspiel" : "Rangliste"} · ${myTurn ? "du bist dran" : statusLabel(match.status)}</span>
             </div>
             <p class="muted small">Gegner: ${escapeHtml(opponent)} · Phase: ${escapeHtml(phaseLabel(match.phase))} · aktualisiert: ${formatDate(match.updated_at)}</p>
             <button class="btn primary" data-action="open-live" data-live-match-id="${match.id}">${myTurn ? "Jetzt spielen" : "Zum Spiel"}</button>
@@ -678,7 +693,7 @@ function renderChallenges(challenges, currentId) {
               <span>#${challenge.challenger_rank || "?"} ${escapeHtml(challenge.challenger_name)} fordert #${challenge.challenged_rank || "?"} ${escapeHtml(challenge.challenged_name)}</span>
               <span class="status ${challenge.status}">${statusLabel(challenge.status)}</span>
             </div>
-            <p class="muted small">Erstellt: ${formatDate(challenge.created_at)}${challenge.accepted_at ? ` · angenommen: ${formatDate(challenge.accepted_at)}` : ""}</p>
+            <p class="muted small">Erstellt: ${formatDate(challenge.created_at)}${challenge.accepted_at ? ` · angenommen: ${formatDate(challenge.accepted_at)}` : ""}${challenge.expires_at && ["open", "accepted"].includes(challenge.status) ? ` · läuft ab: ${formatDate(challenge.expires_at)}` : ""}</p>
             <div class="btn-row">
               ${challenge.active_live_match_id ? `<button class="btn primary" data-action="open-live" data-live-match-id="${challenge.active_live_match_id}">Zum Live-Spiel</button>` : ""}
               ${canAccept ? `<button class="btn primary" data-action="accept" data-challenge-id="${challenge.id}">Annehmen</button>` : ""}
@@ -696,7 +711,7 @@ function renderRecentMatches(matches) {
     <ul class="log-list small">
       ${matches.map(match => `
         <li class="log-item">
-          <strong>${escapeHtml(match.winner_name)} gewinnt</strong><br>
+          <strong>${escapeHtml(match.winner_name)} gewinnt</strong> <span class="pill">${match.match_type === "quick" ? "Kurzspiel" : "Rangliste"}</span><br>
           ${escapeHtml(match.player_a_name)} ${match.score_a}:${match.score_b} ${escapeHtml(match.player_b_name)}<br>
           <span class="muted">${formatDate(match.completed_at)}</span>
         </li>`).join("")}
@@ -719,8 +734,8 @@ function renderLiveMatch() {
       <div class="card">
         <div class="card-title-row">
           <div>
-            <h2>Live-Match</h2>
-            <p class="muted">Du spielst gegen <strong>${escapeHtml(opponent?.display_name || "?")}</strong>. Testmodus: erster Spieler mit ${WIN_POINTS} Punkten gewinnt.</p>
+            <h2>${match.match_type === "quick" ? "Kurzspiel" : "Ranglistenspiel"}</h2>
+            <p class="muted">Du spielst gegen <strong>${escapeHtml(opponent?.display_name || "?")}</strong>. ${match.match_type === "quick" ? "Dieses Spiel ändert keine Rangliste und keine Statistik." : "Dieses Spiel zählt für die Rangliste."} Erster Spieler mit ${WIN_POINTS} Punkten gewinnt.</p>
           </div>
           <div class="btn-row">
             <button class="btn ghost" data-action="refresh-live">Aktualisieren</button>
@@ -752,8 +767,8 @@ function renderLiveScoreboard(match) {
         <div class="score-number">${match.score_a}</div>
       </div>
       <div class="score-middle">
-        <span class="pill">${escapeHtml(phaseLabel(match.phase))}</span>
-        <span class="small">Sieg bei ${WIN_POINTS} Punkten · kein 2-Punkte-Abstand</span>
+        <span class="pill">${match.match_type === "quick" ? "Kurzspiel" : "Rangliste"}</span>
+        <span class="small">${escapeHtml(phaseLabel(match.phase))} · Sieg bei ${WIN_POINTS} Punkten</span>
       </div>
       <div class="score-player ${match.waiting_for_player_id === match.player_b.id ? "active" : ""}">
         <div class="score-name">${escapeHtml(match.player_b.display_name)}${match.point_server_id === match.player_b.id ? " · Aufschlag" : ""}</div>
@@ -768,7 +783,7 @@ function renderLivePhase(match, currentId, waitingPlayer) {
     return `
       <div class="choice-card">
         <p class="point-text">Match beendet: ${escapeHtml(winner?.display_name || "?")} gewinnt ${match.score_a}:${match.score_b}.</p>
-        <p class="muted">${match.status === "forfeited" ? "Das Match wurde durch Timeout entschieden." : "Das Ergebnis wurde gespeichert und die Rangliste aktualisiert."}</p>
+        <p class="muted">${match.status === "forfeited" ? "Das Match wurde durch Timeout entschieden." : match.match_type === "quick" ? "Das Ergebnis wurde als Kurzspiel gespeichert. Die Rangliste bleibt unverändert." : "Das Ergebnis wurde gespeichert und die Rangliste aktualisiert."}</p>
         <button class="btn primary" data-action="back-lobby">Zur Rangliste</button>
       </div>`;
   }
@@ -1023,6 +1038,13 @@ app.addEventListener("click", event => {
       await refreshLobby(false);
       render();
       showToast("Forderung angenommen. Jetzt kann ein Live-Spiel gestartet werden.");
+    }
+
+    if (action === "quick-match") {
+      state.liveMatch = await state.store.startQuickMatch(playerId);
+      state.view = "live";
+      render();
+      showToast("Kurzspiel gestartet. Es zählt nicht für die Rangliste.");
     }
 
     if (action === "cancel") {
