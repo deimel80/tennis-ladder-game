@@ -1,4 +1,4 @@
-const VERSION = "0.6.0";
+const VERSION = "0.6.1";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;

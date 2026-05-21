@@ -592,6 +592,7 @@ tr:last-child td {
 .page-tabs {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   padding: 8px;
   border: 1px solid var(--border);
@@ -600,11 +601,19 @@ tr:last-child td {
 }
 
 .tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 42px;
+  height: 42px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--muted);
-  border-radius: 999px;
-  padding: 10px 14px;
+  border-radius: 14px;
+  padding: 0 16px;
+  line-height: 1;
   font-weight: 850;
   cursor: pointer;
 }
@@ -1056,5 +1065,45 @@ tr:last-child td {
 
   table {
     font-size: 0.85rem;
+  }
+}
+
+
+/* v0.6.1 tab rendering fix */
+.page-tabs {
+  align-items: center;
+}
+
+.tab-btn,
+.tab-btn.active {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  min-height: 42px;
+  max-height: 42px;
+  padding: 0 16px;
+  border-radius: 14px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 700px) {
+  .page-tabs {
+    gap: 8px;
+    padding: 8px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-btn,
+  .tab-btn.active {
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
+    padding: 0 14px;
+    border-radius: 13px;
+    white-space: nowrap;
   }
 }
