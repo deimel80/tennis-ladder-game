@@ -1,4 +1,4 @@
-# Court Clash v0.8.0
+# Court Clash v0.8.2
 
 Browser-Spiel für GitHub Pages mit zentraler Supabase-Speicherung.
 
@@ -17,7 +17,7 @@ Für das Update:
    - `hero-tennis.png`
 3. `config.js` unverändert lassen.
 
-## Neu in v0.8.0
+## Neu in v0.8.2
 
 - Passwort statt 4-stelliger PIN für neue Registrierungen.
 - Bestehende alte PINs bleiben als bisheriges Passwort weiter nutzbar.
@@ -64,3 +64,9 @@ Niemals einen Secret Key oder Service Role Key in `config.js` eintragen.
 - `database.sql` – Tabellen, Regeln und RPC-Funktionen für Supabase
 - `hero-tennis.png` – Startseitenbild
 - `config.example.js` – Beispiel für die Konfiguration
+
+
+## v0.8.2
+- Profilseite als moderne Spielerkarte überarbeitet
+- 2x2-Statistikbereich für Mobile optimiert
+- Pokale dezenter und hochwertiger integriert

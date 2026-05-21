@@ -1,4 +1,4 @@
-const VERSION = "0.8.0";
+const VERSION = "0.8.2";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -883,42 +883,55 @@ function renderPlayerProfile(profile, currentId, isAdmin = false) {
   const streak = computeCurrentStreak(matches, player.id);
   const winRate = (player.wins + player.losses) > 0 ? Math.round((player.wins / (player.wins + player.losses)) * 100) : 0;
   const isSelf = player.id === currentId;
+  const initials = escapeHtml((player.display_name || "?").slice(0, 1).toUpperCase());
+  const recent = matches.slice(0, 3);
+
   return `
-    <div class="card profile-hero-card">
-      <div class="profile-avatar big">${escapeHtml((player.display_name || "?").slice(0, 1).toUpperCase())}</div>
-      <div class="profile-main-copy">
-        <p class="eyebrow">Spielerprofil</p>
-        <h2>${escapeHtml(player.display_name)}${isSelf ? ` <span class="pill">du</span>` : ""}</h2>
-        <p class="muted">Rang ${player.rank_position || "-"} · ${streak.label}</p>
+    <section class="profile-page-pro">
+      <div class="profile-card-pro">
+        <div class="profile-card-main">
+          <div class="profile-avatar-ring"><span>${initials}</span></div>
+          <div class="profile-card-copy">
+            <p class="eyebrow">Spielerprofil</p>
+            <h2>${escapeHtml(player.display_name)}${isSelf ? ` <span class="pill">du</span>` : ""}</h2>
+            <p class="muted">Rang ${player.rank_position || "-"} · ${streak.label}</p>
+          </div>
+        </div>
+        <div class="profile-medal-strip">
+          <span><strong>🏆 ${player.tournament_wins || 0}</strong><small>Turniersiege</small></span>
+          <span><strong>🥈 ${player.tournament_runnerups || 0}</strong><small>Zweite Plätze</small></span>
+        </div>
       </div>
-      <div class="profile-trophies">
-        <span class="trophy-big">🏆 <strong>${player.tournament_wins || 0}</strong><small>Turniersiege</small></span>
-        <span class="trophy-big">🥈 <strong>${player.tournament_runnerups || 0}</strong><small>Zweite Plätze</small></span>
+
+      <div class="profile-stat-tiles">
+        <article><span>Bilanz</span><strong>${player.wins}:${player.losses}</strong><small>Siege : Niederlagen</small></article>
+        <article><span>Siegquote</span><strong>${winRate}%</strong><small>aus Ranglisten- und Spielmatches</small></article>
+        <article><span>Punkte</span><strong>${player.points_for}:${player.points_against}</strong><small>gespielte Punkte</small></article>
+        <article><span>Form</span><strong>${escapeHtml(streak.shortLabel || streak.label)}</strong><small>aktuelle Serie</small></article>
       </div>
-    </div>
 
-    <div class="grid four profile-stat-grid">
-      <div class="score-card"><span class="label">Siege</span><div class="score-number">${player.wins}</div></div>
-      <div class="score-card"><span class="label">Niederlagen</span><div class="score-number">${player.losses}</div></div>
-      <div class="score-card"><span class="label">Siegquote</span><div class="score-number">${winRate}%</div></div>
-      <div class="score-card"><span class="label">Punkte</span><div class="score-number small-number">${player.points_for}:${player.points_against}</div></div>
-    </div>
+      ${isAdmin ? `
+        <div class="card compact">
+          <h2>Admin: Namen ändern</h2>
+          <form class="form-grid rename-player-form" data-player-id="${player.id}">
+            <label class="field"><span>Neuer Name</span><input value="${escapeHtml(player.display_name)}" maxlength="30" required /></label>
+            <button class="btn primary" type="submit">Namen speichern</button>
+          </form>
+        </div>` : ""}
 
-    ${isAdmin ? `
-      <div class="card compact">
-        <h2>Admin: Namen ändern</h2>
-        <form class="form-grid rename-player-form" data-player-id="${player.id}">
-          <label class="field"><span>Neuer Name</span><input value="${escapeHtml(player.display_name)}" maxlength="30" required /></label>
-          <button class="btn primary" type="submit">Namen speichern</button>
-        </form>
-      </div>` : ""}
-
-    <div class="card compact">
-      <div class="card-title-row"><div><h2>Match-Historie</h2><p class="muted">Die letzten gespeicherten Matches dieses Spielers.</p></div><span class="pill">${matches.length}</span></div>
-      ${renderPlayerMatchHistory(matches, player.id)}
-    </div>`;
+      <div class="card compact profile-history-card">
+        <div class="card-title-row">
+          <div>
+            <p class="eyebrow">Historie</p>
+            <h2>Match-Historie</h2>
+            <p class="muted">Die letzten gespeicherten Matches dieses Spielers.</p>
+          </div>
+          <span class="pill">${matches.length}</span>
+        </div>
+        ${renderPlayerMatchHistory(matches, player.id)}
+      </div>
+    </section>`;
 }
-
 function renderPlayerMatchHistory(matches, playerId) {
   if (!matches.length) return `<p class="muted">Noch keine Matches vorhanden.</p>`;
   return `<ul class="profile-match-list">${matches.map(match => {
