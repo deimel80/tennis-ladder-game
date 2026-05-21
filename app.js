@@ -1,4 +1,4 @@
-const VERSION = "0.4.1";
+const VERSION = "0.5.1";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -48,7 +48,7 @@ const state = {
   pollTimer: null,
   tickTimer: null,
   lastLobbyRenderAt: 0,
-  lobbyPage: "home"
+  lobbyPage: "start"
 };
 
 versionBadge.textContent = `v${VERSION}`;
@@ -449,7 +449,9 @@ function startPolling() {
       if (state.view === "lobby" && state.session) {
         await refreshLobby(false);
         state.lastLobbyRenderAt = Date.now();
-        render();
+        if (!shouldPauseLobbyAutoRender()) {
+          render();
+        }
       }
     }, { silent: true });
   }, 2500);
@@ -467,6 +469,13 @@ function startCountdownTicks() {
 async function refreshLobby(showMessage = true) {
   state.lobby = await state.store.getLobby();
   if (showMessage) showToast("Rangliste aktualisiert.");
+}
+
+function shouldPauseLobbyAutoRender() {
+  const active = document.activeElement;
+  const isTyping = Boolean(active && active.closest && active.closest("form"));
+  const openAdminDetails = Boolean(document.querySelector("details.admin-details[open]"));
+  return isTyping || openAdminDetails;
 }
 
 function saveSession(session) {
@@ -520,12 +529,17 @@ function renderSetup() {
   const tournaments = state.lobby?.tournaments || [];
 
   app.innerHTML = `
-    <section class="grid two">
-      <div class="grid">
-        <div class="card">
+    <section class="grid landing-stack public-landing">
+      ${renderLandingHero({ loggedIn: false })}
+      ${renderTopPlayersSection(players, false)}
+      ${renderFeatureNavCards(false)}
+
+      <div class="grid two public-sections">
+        <div id="publicRankingSection" class="card">
           <div class="card-title-row">
             <div>
-              <h2>Rangliste</h2>
+              <p class="eyebrow">Live aus der Rangliste</p>
+              <h2>Aktuelle Rangliste</h2>
               <p class="muted">Öffentlich sichtbar. Zum Fordern bitte anmelden und vom Admin freigeschaltet sein.</p>
             </div>
             <button class="btn ghost" data-action="refresh-public">Aktualisieren</button>
@@ -533,41 +547,50 @@ function renderSetup() {
           ${renderRankingTable(players, null, { showActions: false })}
         </div>
 
-        <div class="card">
-          <div class="card-title-row">
-            <div>
-              <h2>Turniere</h2>
-              <p class="muted">Geplante Abendturniere. Zum Anmelden bitte einloggen.</p>
+        <div id="publicTournamentsSection" class="grid">
+          <div class="card">
+            <div class="card-title-row">
+              <div>
+                <p class="eyebrow">Abend-Events</p>
+                <h2>Turniere</h2>
+                <p class="muted">Geplante Abendturniere. Zum Anmelden bitte einloggen.</p>
+              </div>
             </div>
+            ${renderTournaments(tournaments, null, false, false)}
           </div>
-          ${renderTournaments(tournaments, null, false, false)}
-        </div>
-
-        <div class="card">
-          <div class="card-title-row">
-            <div>
-              <h2>Anmelden</h2>
-              <p class="muted">Melde dich mit Spielername und 4-stelliger PIN an.</p>
-            </div>
-          </div>
-          <div class="success small">Supabase ist aktiv. Neue Spieler müssen nach der Registrierung vom Admin freigegeben werden.</div>
-          <div class="setup-columns" style="margin-top: 16px;">
-            <form id="loginForm" class="card compact form-grid">
-              <h3>Login</h3>
-              <label class="field"><span>Spielername</span><input id="loginName" autocomplete="username" placeholder="z. B. Stefan" required /></label>
-              <label class="field"><span>PIN</span><input id="loginPin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="1234" required /></label>
-              <button class="btn primary" type="submit">Einloggen</button>
-            </form>
-            <form id="registerForm" class="card compact form-grid">
-              <h3>Freigabe anfragen</h3>
-              <label class="field"><span>Spielername</span><input id="registerName" autocomplete="username" placeholder="Name" required /></label>
-              <label class="field"><span>4-stellige PIN</span><input id="registerPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="0000" required /></label>
-              <button class="btn" type="submit">Registrieren und Freigabe anfragen</button>
-            </form>
+          <div class="card compact">
+            <h2>Letzte Matches</h2>
+            ${renderRecentMatches(recentMatches)}
           </div>
         </div>
       </div>
-      <aside class="grid">
+
+      <div id="publicAuthSection" class="card auth-card">
+        <div class="card-title-row">
+          <div>
+            <p class="eyebrow">Jetzt mitspielen</p>
+            <h2>Anmelden oder Freigabe anfragen</h2>
+            <p class="muted">Neue Spieler registrieren sich mit Name und 4-stelliger PIN. Danach muss ein Admin die Freigabe erteilen.</p>
+          </div>
+        </div>
+        <div class="success small">Supabase ist aktiv. Neue Spieler müssen nach der Registrierung vom Admin freigegeben werden.</div>
+        <div class="setup-columns" style="margin-top: 16px;">
+          <form id="loginForm" class="card compact form-grid">
+            <h3>Login</h3>
+            <label class="field"><span>Spielername</span><input id="loginName" autocomplete="username" placeholder="z. B. Stefan" required /></label>
+            <label class="field"><span>PIN</span><input id="loginPin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="1234" required /></label>
+            <button class="btn primary" type="submit">Einloggen</button>
+          </form>
+          <form id="registerForm" class="card compact form-grid">
+            <h3>Freigabe anfragen</h3>
+            <label class="field"><span>Spielername</span><input id="registerName" autocomplete="username" placeholder="Name" required /></label>
+            <label class="field"><span>4-stellige PIN</span><input id="registerPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="0000" required /></label>
+            <button class="btn" type="submit">Registrieren und Freigabe anfragen</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="grid two">
         <div class="card compact">
           <h2>Regelstand v${VERSION}</h2>
           <ul class="log-list small">
@@ -577,16 +600,21 @@ function renderSetup() {
           </ul>
         </div>
         <div class="card compact">
-          <h2>Letzte Matches</h2>
-          ${renderRecentMatches(recentMatches)}
+          <h2>Was dich erwartet</h2>
+          <ul class="log-list small">
+            <li class="log-item"><strong>Live-Duelle:</strong> Beide Spieler spielen wirklich auf zwei Geräten gegeneinander.</li>
+            <li class="log-item"><strong>Turniere:</strong> Mehrere Abendturniere mit Anmeldung, Tableau und Pokalen.</li>
+            <li class="log-item"><strong>Profil:</strong> Turniersiege und zweite Plätze werden dauerhaft gespeichert.</li>
+          </ul>
         </div>
-      </aside>
+      </div>
     </section>`;
 }
 
 function renderMainNav(activePage, isAdmin) {
   const tabs = [
-    ["home", "Übersicht"],
+    ["start", "Start"],
+    ["ranking", "Rangliste"],
     ["matches", "Spiele"],
     ["tournaments", "Turniere"]
   ];
@@ -624,6 +652,99 @@ function renderRulesCard() {
     </div>`;
 }
 
+function getTopPlayers(players, limit = 3) {
+  return [...(players || [])]
+    .sort((a, b) => (a.rank_position ?? 9999) - (b.rank_position ?? 9999))
+    .slice(0, limit);
+}
+
+function renderLandingHero({ loggedIn = false, current = null, pendingApproval = false } = {}) {
+  const title = loggedIn ? `Willkommen${current?.display_name ? `, ${escapeHtml(current.display_name)}` : ""}` : "Court Clash";
+  const text = loggedIn
+    ? (pendingApproval
+        ? "Dein Account wartet noch auf die Freigabe. Schau dir bis dahin die Rangliste und die geplanten Turniere an."
+        : "Fordere Spieler heraus. Gewinne Matches. Steig in der Rangliste.")
+    : "Fordere Spieler heraus. Gewinne Matches. Steig in der Rangliste.";
+  const primaryLabel = loggedIn ? (pendingApproval ? "Zur Rangliste" : "Rangliste öffnen") : "Zum Spiel";
+  const primaryAction = loggedIn ? "set-page" : "scroll-login";
+  const primaryTarget = loggedIn ? "ranking" : "";
+  const secondaryLabel = loggedIn ? "Turniere ansehen" : "Rangliste ansehen";
+  const secondaryAction = loggedIn ? "set-page" : "scroll-ranking";
+  const secondaryTarget = loggedIn ? "tournaments" : "";
+
+  return `
+    <section class="landing-hero card">
+      <div class="landing-copy">
+        <p class="eyebrow">Court Clash</p>
+        <h2 class="landing-title">${title}</h2>
+        <p class="landing-subtitle">${text}</p>
+        <div class="hero-actions">
+          <button class="btn primary large" data-action="${primaryAction}" ${primaryTarget ? `data-page="${primaryTarget}"` : ""}>${primaryLabel}</button>
+          <button class="btn large" data-action="${secondaryAction}" ${secondaryTarget ? `data-page="${secondaryTarget}"` : ""}>${secondaryLabel}</button>
+        </div>
+      </div>
+      <div class="landing-media">
+        <img src="hero-tennis.png" alt="Tennisschläger und Tennisball auf einem Tennisplatz" />
+      </div>
+    </section>`;
+}
+
+function renderTopPlayersSection(players) {
+  const topPlayers = getTopPlayers(players, 3);
+  const styles = [
+    { place: "1. Platz", badge: "🏆", className: "gold" },
+    { place: "2. Platz", badge: "🥈", className: "silver" },
+    { place: "3. Platz", badge: "🥉", className: "bronze" }
+  ];
+  return `
+    <section class="card compact">
+      <div class="card-title-row">
+        <div>
+          <p class="eyebrow">Live aus der Rangliste</p>
+          <h2>Aktuelle Top-Spieler</h2>
+        </div>
+        <span class="pill">Top 3</span>
+      </div>
+      <div class="top-player-grid">
+        ${topPlayers.map((player, index) => {
+          const style = styles[index] || styles[styles.length - 1];
+          return `
+            <article class="top-player-card ${style.className}">
+              <div class="top-player-badge">${style.badge}</div>
+              <div class="top-player-copy">
+                <div class="muted small">${style.place}</div>
+                <h3>${escapeHtml(player.display_name)}</h3>
+                <p class="muted small">Siege ${player.wins} · Niederlagen ${player.losses} · 🏆 ${player.tournament_wins || 0} · 🥈 ${player.tournament_runnerups || 0}</p>
+              </div>
+              <div class="watermark-rank">${player.rank_position ?? index + 1}</div>
+            </article>`;
+        }).join("") || `<p class="muted">Noch keine Spieler vorhanden.</p>`}
+      </div>
+    </section>`;
+}
+
+function renderFeatureNavCards(loggedIn = false) {
+  const cards = loggedIn ? [
+    { title: "Rangliste", text: "Fordere andere heraus und arbeite dich nach oben.", action: "set-page", page: "ranking", icon: "🎾" },
+    { title: "Spiele", text: "Starte Kurzspiele und bearbeite laufende Matches.", action: "set-page", page: "matches", icon: "⚡" },
+    { title: "Turniere", text: "Melde dich für Abendturniere an und kämpfe um Pokale.", action: "set-page", page: "tournaments", icon: "🏆" }
+  ] : [
+    { title: "Rangliste", text: "Die besten Spieler und ihre aktuelle Platzierung.", action: "scroll-ranking", page: "", icon: "🎾" },
+    { title: "Turniere", text: "Geplante Abendturniere mit Anmeldung und Tableau.", action: "scroll-tournaments", page: "", icon: "🏆" },
+    { title: "Mitspielen", text: "Jetzt einloggen oder Registrierung zur Freigabe schicken.", action: "scroll-login", page: "", icon: "➡️" }
+  ];
+
+  return `
+    <div class="feature-grid">
+      ${cards.map(card => `
+        <button class="feature-tile" data-action="${card.action}" ${card.page ? `data-page="${card.page}"` : ""}>
+          <span class="feature-icon">${card.icon}</span>
+          <span class="feature-title">${card.title}</span>
+          <span class="feature-text">${card.text}</span>
+        </button>`).join("")}
+    </div>`;
+}
+
 function renderLobby() {
   const currentId = state.session?.player?.id;
   const players = state.lobby?.players || [];
@@ -635,44 +756,58 @@ function renderLobby() {
   const tournaments = state.lobby?.tournaments || [];
   const isApproved = Boolean(current?.is_approved);
   const isAdmin = Boolean(current?.is_admin);
+  const activePage = state.lobbyPage || "start";
 
   if (!isApproved) {
+    let pendingMain = "";
+    if (activePage === "tournaments") {
+      pendingMain = `
+        <div class="card">
+          <div class="card-title-row">
+            <div>
+              <h2>Turniere</h2>
+              <p class="muted">Du siehst Turniere, kannst dich aber erst nach Freigabe anmelden.</p>
+            </div>
+          </div>
+          ${renderTournaments(tournaments, current?.id, false, false)}
+        </div>`;
+    } else if (activePage === "ranking") {
+      pendingMain = `
+        <div class="card">
+          <div class="card-title-row">
+            <div>
+              <h2>Rangliste</h2>
+              <p class="muted">Nur freigegebene Spieler erscheinen in der Tabelle.</p>
+            </div>
+          </div>
+          ${renderRankingTable(players, null, { showActions: false })}
+        </div>`;
+    } else {
+      pendingMain = `
+        ${renderLandingHero({ loggedIn: true, current, pendingApproval: true })}
+        ${renderTopPlayersSection(players)}
+        <div class="card compact">
+          <h2>Freigabe ausstehend</h2>
+          <p class="muted">Angemeldet als <strong>${escapeHtml(current?.display_name || "?")}</strong>. Dieses Konto ist noch nicht vom Admin freigegeben.</p>
+          <div class="notice small">Du kannst die öffentliche Rangliste und die Turniere sehen. Nach der Freigabe kannst du fordern, Kurzspiele starten und an Turnieren teilnehmen.</div>
+        </div>`;
+    }
+
     app.innerHTML = `
       <section class="grid two">
         <div class="grid">
-          <div class="card">
-            <div class="card-title-row">
-              <div>
-                <h2>Freigabe ausstehend</h2>
-                <p class="muted">Angemeldet als <strong>${escapeHtml(current?.display_name || "?")}</strong>. Dieses Konto ist noch nicht vom Admin freigegeben.</p>
-              </div>
-              <div class="btn-row">
-                <button class="btn ghost" data-action="refresh">Aktualisieren</button>
-                <button class="btn ghost" data-action="logout">Abmelden</button>
-              </div>
+          <div class="card compact lobby-head">
+            <div>
+              <p class="eyebrow">Angemeldet</p>
+              <h2>${escapeHtml(current?.display_name || "?")}</h2>
             </div>
-            <div class="notice small">Du kannst die öffentliche Rangliste sehen, aber noch keine Forderungen erstellen oder Live-Spiele starten.</div>
+            <div class="btn-row">
+              <button class="btn ghost" data-action="refresh">Aktualisieren</button>
+              <button class="btn ghost" data-action="logout">Abmelden</button>
+            </div>
           </div>
-          ${renderMainNav(state.lobbyPage, false)}
-          ${state.lobbyPage === "tournaments" ? `
-            <div class="card">
-              <div class="card-title-row">
-                <div>
-                  <h2>Turniere</h2>
-                  <p class="muted">Du siehst Turniere, kannst dich aber erst nach Freigabe anmelden.</p>
-                </div>
-              </div>
-              ${renderTournaments(tournaments, current?.id, false, false)}
-            </div>` : `
-            <div class="card">
-              <div class="card-title-row">
-                <div>
-                  <h2>Rangliste</h2>
-                  <p class="muted">Nur freigegebene Spieler erscheinen in der Tabelle.</p>
-                </div>
-              </div>
-              ${renderRankingTable(players, null, { showActions: false })}
-            </div>`}
+          ${renderMainNav(activePage, false)}
+          ${pendingMain}
         </div>
         <aside class="grid">
           <div class="card compact"><h2>Status</h2><p class="muted small">Warte auf Admin-Freigabe. Nach der Freigabe bitte aktualisieren oder neu einloggen.</p></div>
@@ -682,7 +817,6 @@ function renderLobby() {
     return;
   }
 
-  const activePage = state.lobbyPage || "home";
   let mainContent = "";
 
   if (activePage === "tournaments") {
@@ -721,7 +855,7 @@ function renderLobby() {
       </div>`;
   } else if (activePage === "admin" && isAdmin) {
     mainContent = `${renderAdminPanel(pendingPlayers)}`;
-  } else {
+  } else if (activePage === "ranking") {
     mainContent = `
       <div class="card">
         <div class="card-title-row">
@@ -732,6 +866,31 @@ function renderLobby() {
           <button class="btn ghost" data-action="refresh">Aktualisieren</button>
         </div>
         ${renderRankingTable(players, currentId)}
+      </div>`;
+  } else {
+    const myOpenChallenges = challenges.filter(challenge => [challenge.challenger_id, challenge.challenged_id].includes(currentId) && ["open", "accepted"].includes(challenge.status));
+    const myLiveMatches = liveMatches.filter(match => [match.player_a_id, match.player_b_id].includes(currentId));
+    mainContent = `
+      ${renderLandingHero({ loggedIn: true, current })}
+      ${renderTopPlayersSection(players)}
+      ${renderFeatureNavCards(true)}
+      <div class="grid two">
+        <div class="card compact">
+          <h2>Dein Fokus</h2>
+          <div class="grid two quick-stats-grid">
+            <div class="score-card"><span class="label">Offene Forderungen</span><div class="score-number">${myOpenChallenges.length}</div></div>
+            <div class="score-card"><span class="label">Live-Spiele</span><div class="score-number">${myLiveMatches.length}</div></div>
+          </div>
+          <p class="muted small" style="margin-top:12px;">Gehe über die Kacheln direkt zu Rangliste, Spiele oder Turnieren.</p>
+        </div>
+        <div class="card compact">
+          <h2>Aktive Turniere</h2>
+          ${tournaments.length ? `<ul class="log-list small">${tournaments.slice(0, 4).map(t => `<li class="log-item"><strong>${escapeHtml(t.name)}</strong><br><span class="muted">${tournamentStatusLabel(t.status)} · Start ${formatDate(t.starts_at)}</span></li>`).join("")}</ul>` : `<p class="muted small">Noch keine Turniere angelegt.</p>`}
+        </div>
+      </div>
+      <div class="card compact">
+        <h2>Letzte Matches</h2>
+        ${renderRecentMatches(recentMatches)}
       </div>`;
   }
 
@@ -754,7 +913,7 @@ function renderLobby() {
 
       <aside class="grid">
         ${renderProfileSummary(current)}
-        ${activePage === "home" ? renderRulesCard() : ""}
+        ${activePage === "start" ? renderRulesCard() : ""}
         <div class="card compact">
           <h2>Letzte Matches</h2>
           ${renderRecentMatches(recentMatches)}
@@ -1285,8 +1444,20 @@ app.addEventListener("click", event => {
     }
 
     if (action === "set-page") {
-      state.lobbyPage = button.dataset.page || "home";
+      state.lobbyPage = button.dataset.page || "start";
       render();
+    }
+
+    if (action === "scroll-login") {
+      document.getElementById("publicAuthSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    if (action === "scroll-ranking") {
+      document.getElementById("publicRankingSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    if (action === "scroll-tournaments") {
+      document.getElementById("publicTournamentsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     if (action === "logout") {

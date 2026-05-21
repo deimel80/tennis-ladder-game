@@ -1,4 +1,4 @@
-# Tennis Ladder Live-Tiebreak v0.4.1
+# Court Clash Live-Tiebreak v0.5.1
 
 Statisches Browser-Spiel für GitHub Pages mit zentraler Supabase-Speicherung.
 
@@ -16,7 +16,7 @@ Für ein bestehendes Projekt:
    - `README.md`
 3. `config.js` unverändert lassen.
 
-## Neue Funktionen in v0.4.1
+## Neue Funktionen in v0.5.1
 
 - Geplante K.O.-Turniere:
   - Admin erstellt mehrere Turniere mit Name, Datum, Startzeit, Anmeldeschluss und maximaler Teilnehmerzahl.
@@ -64,8 +64,14 @@ Niemals einen Secret Key oder Service Role Key in `config.js` eintragen.
 - `config.example.js` – Beispiel für die Konfiguration
 
 
-## v0.4.1
+## v0.5.1
 
 - Oberfläche entzerrt: Übersicht/Rangliste, Spiele, Turniere und Admin sind getrennte Bereiche.
 - Turniere liegen auf eigener Seite im Spiel, damit die Rangliste nicht überladen wirkt.
 - Keine Datenbankänderung gegenüber v0.4.0 erforderlich.
+
+
+## Neu in v0.5.1
+- schöne Startseite mit Hero-Bereich, Top-Spielern und Direkteinstiegen
+- öffentliche Startseite vor dem Login mit Link zur Rangliste und zum Login
+- neue Navigation mit separatem Start- und Ranglisten-Reiter
