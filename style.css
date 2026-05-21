@@ -1338,7 +1338,7 @@ tr:last-child td {
 @media (max-width: 980px) { .grid.four, .profile-hero-card, .admin-player-row { grid-template-columns: 1fr; } .profile-trophies { justify-content: stretch; } .trophy-big { min-width: 0; } .fame-list li { grid-template-columns: auto 1fr; } .fame-list li span:last-child { grid-column: 2; } }
 
 
-/* v0.7.1 start page layout fix */
+/* v0.8.0 start page layout fix */
 .clean-public-landing {
   max-width: 1100px;
   margin: 0 auto;
@@ -1364,5 +1364,79 @@ tr:last-child td {
 
   .clean-hero-content .next-tournament-card {
     max-width: 100%;
+  }
+}
+
+
+/* v0.8.0 notifications/password */
+
+.notification-card.has-items {
+  border-color: rgba(182, 255, 111, 0.28);
+  background: rgba(182, 255, 111, 0.07);
+}
+
+.notification-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.notification-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.notification-item.important {
+  border-color: rgba(182, 255, 111, 0.32);
+  background: rgba(182, 255, 111, 0.09);
+}
+
+.notification-item.warning {
+  border-color: rgba(255, 211, 111, 0.32);
+  background: rgba(255, 211, 111, 0.09);
+}
+
+.notification-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.notification-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.notification-copy span {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.btn.small {
+  padding: 8px 10px;
+  min-height: 34px;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 720px) {
+  .notification-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .notification-item .btn {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 }

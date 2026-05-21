@@ -1,12 +1,12 @@
-# Court Clash Live-Tiebreak v0.7.1
+# Court Clash v0.8.0
 
-Statisches Browser-Spiel für GitHub Pages mit zentraler Supabase-Speicherung.
+Browser-Spiel für GitHub Pages mit zentraler Supabase-Speicherung.
 
-## Wichtig beim Update
+## Update-Hinweis
 
 Diese ZIP enthält bewusst keine produktive `config.js`. Deine bestehende `config.js` mit Supabase-URL und Publishable/Anon-Key darf nicht überschrieben werden.
 
-Für ein bestehendes Projekt:
+Für das Update:
 
 1. `database.sql` in Supabase komplett ausführen.
 2. Auf GitHub diese Dateien ersetzen:
@@ -14,33 +14,34 @@ Für ein bestehendes Projekt:
    - `style.css`
    - `app.js`
    - `README.md`
+   - `hero-tennis.png`
 3. `config.js` unverändert lassen.
 
-## Neue Funktionen in v0.7.1
+## Neu in v0.8.0
 
-- Geplante K.O.-Turniere:
-  - Admin erstellt mehrere Turniere mit Name, Datum, Startzeit, Anmeldeschluss und maximaler Teilnehmerzahl.
-  - Spieler melden sich für Turniere an oder ab, solange die Anmeldung offen ist.
-  - Admin generiert ein Tableau mit Freilosen.
-  - Turniermatches laufen als echtes Zwei-Geräte-Live-Spiel.
-  - Turniersieger und Zweitplatzierte werden gespeichert.
-  - Profil/Rangliste zeigen Pokale: 🏆 Turniersiege und 🥈 zweite Plätze.
-  - Turniere zählen nicht automatisch für die Rangliste.
-- Ranglisten-Forderungen sind begrenzt:
-  - Top 3: nur den direkt davor platzierten Spieler.
-  - Top 10: maximal 2 Plätze nach oben.
-  - ab Rang 11: maximal 5 Plätze nach oben.
-- Neue Spieler starten nach Admin-Freigabe unten in der Rangliste.
-- Pro Spieler ist nur eine aktive Forderung oder ein laufendes Live-Spiel erlaubt.
-- Offene Forderungen laufen nach 24 Stunden ab.
-- Angenommene Forderungen laufen nach 30 Minuten ab, wenn kein Spiel gestartet wird.
-- Gleicher Gegner ist erst nach 12 Stunden wieder ranglistenrelevant forderbar.
-- Kurzspiel eingebaut:
-  - direkt aus der Rangliste startbar.
-  - echtes Live-Spiel über zwei Geräte.
-  - zählt nicht für Rangliste und nicht für Statistik.
-- Timeout bleibt bei 5 Minuten pro Eingabe.
-- Spielziel bleibt für Tests: erster Spieler mit 3 Punkten gewinnt, ohne 2-Punkte-Abstand.
+- Passwort statt 4-stelliger PIN für neue Registrierungen.
+- Bestehende alte PINs bleiben als bisheriges Passwort weiter nutzbar.
+- In-App-Nachrichten für:
+  - neue Forderungen,
+  - angenommene Ranglistenspiele,
+  - laufende Live-Matches,
+  - Turnierstarts innerhalb der nächsten 24 Stunden,
+  - bereite Turniermatches.
+- Keine E-Mail-Adressen und keine zusätzlichen personenbezogenen Benachrichtigungsdaten.
+- Nachrichten erscheinen automatisch nach Login beziehungsweise bei gespeicherter Session beim Öffnen der Seite.
+
+## Bestehende Funktionen
+
+- zentrale Rangliste über Supabase
+- Admin-Freigabe für neue Spieler
+- Ranglisten-Forderungen mit begrenztem Forderungsbereich
+- Kurzspiele ohne Ranglistenwertung
+- Live-Spiel über zwei Geräte
+- geplante K.O.-Turniere mit Anmeldung, Tableau und Freilosen
+- Turniersieger und zweite Plätze als Pokale im Profil
+- Spielerprofile mit Match-Historie
+- Hall of Fame
+- Admin kann Spielernamen ändern
 
 ## Supabase-Konfiguration
 
@@ -61,41 +62,5 @@ Niemals einen Secret Key oder Service Role Key in `config.js` eintragen.
 - `style.css` – Layout und Optik
 - `app.js` – Spiellogik und Supabase-Anbindung
 - `database.sql` – Tabellen, Regeln und RPC-Funktionen für Supabase
+- `hero-tennis.png` – Startseitenbild
 - `config.example.js` – Beispiel für die Konfiguration
-
-
-## v0.7.1
-
-- Oberfläche entzerrt: Übersicht/Rangliste, Spiele, Turniere und Admin sind getrennte Bereiche.
-- Turniere liegen auf eigener Seite im Spiel, damit die Rangliste nicht überladen wirkt.
-- Keine Datenbankänderung gegenüber v0.4.0 erforderlich.
-
-
-## Neu in v0.7.1
-- schöne Startseite mit Hero-Bereich, Top-Spielern und Direkteinstiegen
-- öffentliche Startseite vor dem Login mit Link zur Rangliste und zum Login
-- neue Navigation mit separatem Start- und Ranglisten-Reiter
-
-
-## Neu in v0.7.1
-- reduzierte öffentliche Startseite mit großem Tennisbild und klarem Einstieg
-- Button „Zum Spiel“ führt in den eigentlichen Spielbereich
-- öffentlicher Spielbereich vor Login deutlich entschlackt
-- eingeloggtes Dashboard weniger überladen
-- bessere Handy-Ansicht mit weniger Text und einspaltigen Karten
-
-
-## Neu in v0.7.1
-- schönere Live-Top-Spieler-Karten auf der Startseite
-- Podium-Darstellung mit Rang, Bilanz, Turniersiegen und zweiten Plätzen
-- Startseiten-Topspieler bleiben aus den Supabase-Livedaten generiert
-
-
-## Neu in v0.7.1
-- Nächstes Turnier direkt auf der Startseite
-- Spielerprofile mit Pokalen, Bilanz, Streak und Match-Historie
-- Hall of Fame für Turniersieger
-- Admin kann Spielernamen ändern
-- Ranglisten-Namen öffnen direkt das Profil
-
-Für v0.7.1 muss die database.sql einmal erneut in Supabase ausgeführt werden.

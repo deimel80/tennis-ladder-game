@@ -1,4 +1,4 @@
-const VERSION = "0.7.1";
+const VERSION = "0.8.0";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -566,7 +566,7 @@ function renderSetup() {
         <div>
           <p class="eyebrow">Court Clash</p>
           <h2>Spielbereich</h2>
-          <p class="muted">Melde dich an, sieh die Rangliste oder prüfe die nächsten Turniere.</p>
+          <p class="muted">Melde dich an, sieh die Rangliste oder prüfe deine Nachrichten und Turniere.</p>
         </div>
         <button class="btn ghost" data-action="back-public-landing">Zur Startseite</button>
       </div>
@@ -575,20 +575,20 @@ function renderSetup() {
         <div class="card-title-row">
           <div>
             <h2>Anmelden</h2>
-            <p class="muted">Neue Spieler registrieren sich mit Name und 4-stelliger PIN. Danach muss ein Admin die Freigabe erteilen.</p>
+            <p class="muted">Neue Spieler registrieren sich mit Name und Passwort. Danach muss ein Admin die Freigabe erteilen.</p>
           </div>
         </div>
         <div class="setup-columns">
           <form id="loginForm" class="card compact form-grid">
             <h3>Login</h3>
             <label class="field"><span>Spielername</span><input id="loginName" autocomplete="username" placeholder="z. B. Stefan" required /></label>
-            <label class="field"><span>PIN</span><input id="loginPin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="1234" required /></label>
+            <label class="field"><span>Passwort</span><input id="loginPin" type="password" autocomplete="current-password" placeholder="Passwort" required /></label>
             <button class="btn primary" type="submit">Einloggen</button>
           </form>
           <form id="registerForm" class="card compact form-grid">
             <h3>Freigabe anfragen</h3>
             <label class="field"><span>Spielername</span><input id="registerName" autocomplete="username" placeholder="Name" required /></label>
-            <label class="field"><span>4-stellige PIN</span><input id="registerPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="0000" required /></label>
+            <label class="field"><span>Passwort</span><input id="registerPin" type="password" minlength="6" maxlength="72" autocomplete="new-password" placeholder="mind. 6 Zeichen" required /></label>
             <button class="btn" type="submit">Registrieren</button>
           </form>
         </div>
@@ -931,6 +931,108 @@ function renderPlayerMatchHistory(matches, playerId) {
   }).join("")}</ul>`;
 }
 
+
+function getPlayerTournamentEntries(tournaments, currentId) {
+  if (!currentId) return [];
+  const entries = [];
+  (tournaments || []).forEach(tournament => {
+    if ((tournament.entries || []).some(entry => entry.player_id === currentId)) {
+      entries.push(tournament);
+    }
+  });
+  return entries;
+}
+
+function getPlayerTournamentMatches(tournaments, currentId) {
+  if (!currentId) return [];
+  const matches = [];
+  (tournaments || []).forEach(tournament => {
+    (tournament.matches || []).forEach(match => {
+      if ([match.player_a_id, match.player_b_id].includes(currentId)) {
+        matches.push({ ...match, tournament_name: tournament.name, tournament_status: tournament.status });
+      }
+    });
+  });
+  return matches;
+}
+
+function createDashboardNotifications(current, challenges = [], liveMatches = [], tournaments = []) {
+  if (!current?.id) return [];
+  const currentId = current.id;
+  const notifications = [];
+
+  if (!current.is_approved) {
+    notifications.push({ icon: "⏳", title: "Freigabe ausstehend", text: "Dein Account wartet noch auf die Admin-Freigabe.", level: "warning", actionPage: "start" });
+  }
+
+  challenges.forEach(challenge => {
+    if (challenge.status === "open" && challenge.challenged_id === currentId) {
+      notifications.push({ icon: "🎾", title: "Neue Forderung", text: `${challenge.challenger_name} fordert dich heraus.`, level: "important", actionPage: "matches" });
+    }
+    if (challenge.status === "accepted" && [challenge.challenger_id, challenge.challenged_id].includes(currentId) && !challenge.active_live_match_id) {
+      notifications.push({ icon: "⚡", title: "Ranglistenspiel bereit", text: `${challenge.challenger_name} gegen ${challenge.challenged_name} kann gestartet werden.`, level: "important", actionPage: "matches" });
+    }
+  });
+
+  liveMatches.forEach(match => {
+    if (![match.player_a_id, match.player_b_id].includes(currentId)) return;
+    const opponent = match.player_a_id === currentId ? match.player_b_name : match.player_a_name;
+    if (match.waiting_for_player_id === currentId) {
+      notifications.push({ icon: "🔔", title: "Du bist am Zug", text: `${matchTypeLabel(match.match_type)} gegen ${opponent}: Eingabe erforderlich.`, level: "important", liveMatchId: match.id });
+    } else {
+      notifications.push({ icon: "⌛", title: "Warte auf Gegner", text: `${opponent} ist im laufenden ${matchTypeLabel(match.match_type)} am Zug.`, level: "info", liveMatchId: match.id });
+    }
+  });
+
+  const now = Date.now();
+  getPlayerTournamentEntries(tournaments, currentId).forEach(tournament => {
+    const startsAt = new Date(tournament.starts_at).getTime();
+    const hoursUntil = (startsAt - now) / 36e5;
+    if (["registration_open", "tableau_generated", "running"].includes(tournament.status) && hoursUntil >= -2 && hoursUntil <= 24) {
+      notifications.push({ icon: "🏆", title: "Turnier-Erinnerung", text: `${tournament.name} startet ${formatDate(tournament.starts_at)}.`, level: hoursUntil <= 1 ? "important" : "info", actionPage: "tournaments" });
+    }
+  });
+
+  getPlayerTournamentMatches(tournaments, currentId).forEach(match => {
+    if (match.status === "ready") {
+      notifications.push({ icon: "🏁", title: "Turniermatch bereit", text: `${match.tournament_name}: Dein Match kann gestartet werden.`, level: "important", actionPage: "tournaments" });
+    }
+    if (match.live_match_id && ["active", "running"].includes(match.status)) {
+      notifications.push({ icon: "🎮", title: "Turniermatch läuft", text: `${match.tournament_name}: Zurück ins Match.`, level: "important", liveMatchId: match.live_match_id });
+    }
+  });
+
+  const seen = new Set();
+  return notifications.filter(item => {
+    const key = `${item.title}|${item.text}|${item.liveMatchId || item.actionPage || ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 8);
+}
+
+function renderNotificationPanel(notifications, compact = false) {
+  const count = notifications.length;
+  return `
+    <div class="card compact notification-card ${count ? "has-items" : ""}">
+      <div class="card-title-row">
+        <div>
+          <p class="eyebrow">Nachrichten</p>
+          <h2>Aktuelles</h2>
+        </div>
+        <span class="pill ${count ? "danger" : ""}">${count}</span>
+      </div>
+      ${count ? `<ul class="notification-list ${compact ? "compact" : ""}">
+        ${notifications.map(item => `
+          <li class="notification-item ${item.level || "info"}">
+            <span class="notification-icon">${item.icon || "•"}</span>
+            <span class="notification-copy"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.text)}</span></span>
+            ${item.liveMatchId ? `<button class="btn small" data-action="open-live" data-live-match-id="${item.liveMatchId}">Öffnen</button>` : item.actionPage ? `<button class="btn small" data-action="set-page" data-page="${item.actionPage}">Ansehen</button>` : ""}
+          </li>`).join("")}
+      </ul>` : `<p class="muted small">Keine neuen Hinweise. Wenn du angemeldet bleibst, erscheinen Turnierstarts, Forderungen und laufende Matches hier automatisch.</p>`}
+    </div>`;
+}
+
 function renderLobby() {
   const currentId = state.session?.player?.id;
   const players = state.lobby?.players || [];
@@ -943,6 +1045,7 @@ function renderLobby() {
   const isApproved = Boolean(current?.is_approved);
   const isAdmin = Boolean(current?.is_admin);
   const activePage = state.lobbyPage || "start";
+  const notifications = createDashboardNotifications(current, challenges, liveMatches, tournaments);
 
   if (!isApproved) {
     let pendingMain = "";
@@ -973,7 +1076,7 @@ function renderLobby() {
   if (activePage === "tournaments") {
     mainContent = `<div class="card"><div class="card-title-row"><div><h2>Turniere</h2><p class="muted">Geplante K.O.-Turniere mit Anmeldung, Tableau und Pokalen für Platz 1 und 2.</p></div><button class="btn ghost" data-action="refresh">Aktualisieren</button></div>${isAdmin ? renderTournamentAdminForm() : ""}${renderTournaments(tournaments, currentId, isApproved, isAdmin)}</div>`;
   } else if (activePage === "matches") {
-    mainContent = `<div class="card"><div class="card-title-row"><div><h2>Live-Spiele</h2><p class="muted">Laufende Matches, bei denen du beteiligt bist.</p></div><button class="btn ghost" data-action="refresh">Aktualisieren</button></div>${renderLiveMatches(liveMatches, currentId)}</div><div class="card"><div class="card-title-row"><div><h2>Forderungen</h2><p class="muted">Ranglistenspiele laufen über Fordern → Annehmen → Live-Spiel starten.</p></div></div>${renderChallenges(challenges, currentId)}</div>`;
+    mainContent = `${renderNotificationPanel(notifications)}<div class="card"><div class="card-title-row"><div><h2>Live-Spiele</h2><p class="muted">Laufende Matches, bei denen du beteiligt bist.</p></div><button class="btn ghost" data-action="refresh">Aktualisieren</button></div>${renderLiveMatches(liveMatches, currentId)}</div><div class="card"><div class="card-title-row"><div><h2>Forderungen</h2><p class="muted">Ranglistenspiele laufen über Fordern → Annehmen → Live-Spiel starten.</p></div></div>${renderChallenges(challenges, currentId)}</div>`;
   } else if (activePage === "admin" && isAdmin) {
     mainContent = `${renderAdminPanel(pendingPlayers, players)}`;
   } else if (activePage === "ranking") {
@@ -987,6 +1090,7 @@ function renderLobby() {
     const nextTournament = getNextTournament(tournaments);
     mainContent = `
       <div class="card compact clean-dashboard-head"><div><p class="eyebrow">Court Clash</p><h2>Willkommen, ${escapeHtml(current?.display_name || "?")}</h2><p class="muted">Fordern, spielen oder Turnier anmelden. Details liegen in den einzelnen Bereichen.</p></div></div>
+      ${renderNotificationPanel(notifications)}
       ${renderNextTournamentCard(tournaments)}
       <div class="feature-grid compact-actions">
         <button class="feature-tile" data-action="set-page" data-page="ranking"><span class="feature-icon">🎾</span><span class="feature-title">Rangliste</span><span class="feature-text">Fordere passende Gegner.</span></button>
@@ -1007,7 +1111,7 @@ function renderLobby() {
         <div class="card compact lobby-head"><div><p class="eyebrow">Angemeldet</p><h2>${escapeHtml(current?.display_name || "?")}${isAdmin ? ` <span class="pill">Admin</span>` : ""}</h2></div><div class="btn-row"><button class="btn ghost" data-action="refresh">Aktualisieren</button><button class="btn ghost" data-action="logout">Abmelden</button></div></div>
         ${renderMainNav(activePage, isAdmin)}${mainContent}
       </div>
-      <aside class="grid">${renderProfileSummary(current)}${activePage === "start" ? renderRulesCard() : ""}<div class="card compact"><h2>Letzte Matches</h2>${renderRecentMatches(recentMatches)}</div></aside>
+      <aside class="grid">${renderProfileSummary(current)}${activePage !== "start" ? renderNotificationPanel(notifications, true) : ""}${activePage === "start" ? renderRulesCard() : ""}<div class="card compact"><h2>Letzte Matches</h2>${renderRecentMatches(recentMatches)}</div></aside>
     </section>`;
 }
 function renderAdminPanel(pendingPlayers, players = []) {
