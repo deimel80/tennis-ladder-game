@@ -1,4 +1,4 @@
-# Court Clash Live-Tiebreak v0.5.1
+# Court Clash Live-Tiebreak v0.6.0
 
 Statisches Browser-Spiel für GitHub Pages mit zentraler Supabase-Speicherung.
 
@@ -16,7 +16,7 @@ Für ein bestehendes Projekt:
    - `README.md`
 3. `config.js` unverändert lassen.
 
-## Neue Funktionen in v0.5.1
+## Neue Funktionen in v0.6.0
 
 - Geplante K.O.-Turniere:
   - Admin erstellt mehrere Turniere mit Name, Datum, Startzeit, Anmeldeschluss und maximaler Teilnehmerzahl.
@@ -64,14 +64,22 @@ Niemals einen Secret Key oder Service Role Key in `config.js` eintragen.
 - `config.example.js` – Beispiel für die Konfiguration
 
 
-## v0.5.1
+## v0.6.0
 
 - Oberfläche entzerrt: Übersicht/Rangliste, Spiele, Turniere und Admin sind getrennte Bereiche.
 - Turniere liegen auf eigener Seite im Spiel, damit die Rangliste nicht überladen wirkt.
 - Keine Datenbankänderung gegenüber v0.4.0 erforderlich.
 
 
-## Neu in v0.5.1
+## Neu in v0.6.0
 - schöne Startseite mit Hero-Bereich, Top-Spielern und Direkteinstiegen
 - öffentliche Startseite vor dem Login mit Link zur Rangliste und zum Login
 - neue Navigation mit separatem Start- und Ranglisten-Reiter
+
+
+## Neu in v0.6.0
+- reduzierte öffentliche Startseite mit großem Tennisbild und klarem Einstieg
+- Button „Zum Spiel“ führt in den eigentlichen Spielbereich
+- öffentlicher Spielbereich vor Login deutlich entschlackt
+- eingeloggtes Dashboard weniger überladen
+- bessere Handy-Ansicht mit weniger Text und einspaltigen Karten

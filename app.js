@@ -1,4 +1,4 @@
-const VERSION = "0.5.1";
+const VERSION = "0.6.0";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -48,7 +48,8 @@ const state = {
   pollTimer: null,
   tickTimer: null,
   lastLobbyRenderAt: 0,
-  lobbyPage: "start"
+  lobbyPage: "start",
+  publicEntered: false
 };
 
 versionBadge.textContent = `v${VERSION}`;
@@ -528,53 +529,30 @@ function renderSetup() {
   const recentMatches = state.lobby?.recent_matches || [];
   const tournaments = state.lobby?.tournaments || [];
 
+  if (!state.publicEntered) {
+    app.innerHTML = renderPublicLandingOnly(players, tournaments);
+    return;
+  }
+
   app.innerHTML = `
-    <section class="grid landing-stack public-landing">
-      ${renderLandingHero({ loggedIn: false })}
-      ${renderTopPlayersSection(players, false)}
-      ${renderFeatureNavCards(false)}
-
-      <div class="grid two public-sections">
-        <div id="publicRankingSection" class="card">
-          <div class="card-title-row">
-            <div>
-              <p class="eyebrow">Live aus der Rangliste</p>
-              <h2>Aktuelle Rangliste</h2>
-              <p class="muted">Öffentlich sichtbar. Zum Fordern bitte anmelden und vom Admin freigeschaltet sein.</p>
-            </div>
-            <button class="btn ghost" data-action="refresh-public">Aktualisieren</button>
-          </div>
-          ${renderRankingTable(players, null, { showActions: false })}
+    <section class="grid app-entry-grid">
+      <div class="card compact entry-head">
+        <div>
+          <p class="eyebrow">Court Clash</p>
+          <h2>Spielbereich</h2>
+          <p class="muted">Melde dich an, sieh die Rangliste oder prüfe die nächsten Turniere.</p>
         </div>
-
-        <div id="publicTournamentsSection" class="grid">
-          <div class="card">
-            <div class="card-title-row">
-              <div>
-                <p class="eyebrow">Abend-Events</p>
-                <h2>Turniere</h2>
-                <p class="muted">Geplante Abendturniere. Zum Anmelden bitte einloggen.</p>
-              </div>
-            </div>
-            ${renderTournaments(tournaments, null, false, false)}
-          </div>
-          <div class="card compact">
-            <h2>Letzte Matches</h2>
-            ${renderRecentMatches(recentMatches)}
-          </div>
-        </div>
+        <button class="btn ghost" data-action="back-public-landing">Zur Startseite</button>
       </div>
 
       <div id="publicAuthSection" class="card auth-card">
         <div class="card-title-row">
           <div>
-            <p class="eyebrow">Jetzt mitspielen</p>
-            <h2>Anmelden oder Freigabe anfragen</h2>
+            <h2>Anmelden</h2>
             <p class="muted">Neue Spieler registrieren sich mit Name und 4-stelliger PIN. Danach muss ein Admin die Freigabe erteilen.</p>
           </div>
         </div>
-        <div class="success small">Supabase ist aktiv. Neue Spieler müssen nach der Registrierung vom Admin freigegeben werden.</div>
-        <div class="setup-columns" style="margin-top: 16px;">
+        <div class="setup-columns">
           <form id="loginForm" class="card compact form-grid">
             <h3>Login</h3>
             <label class="field"><span>Spielername</span><input id="loginName" autocomplete="username" placeholder="z. B. Stefan" required /></label>
@@ -585,28 +563,37 @@ function renderSetup() {
             <h3>Freigabe anfragen</h3>
             <label class="field"><span>Spielername</span><input id="registerName" autocomplete="username" placeholder="Name" required /></label>
             <label class="field"><span>4-stellige PIN</span><input id="registerPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="0000" required /></label>
-            <button class="btn" type="submit">Registrieren und Freigabe anfragen</button>
+            <button class="btn" type="submit">Registrieren</button>
           </form>
         </div>
       </div>
 
-      <div class="grid two">
-        <div class="card compact">
-          <h2>Regelstand v${VERSION}</h2>
-          <ul class="log-list small">
-            <li class="log-item"><strong>Rangliste:</strong> Forderungen sind begrenzt: Top 3 nur 1 Platz, Top 10 maximal 2 Plätze, danach maximal 5 Plätze nach oben.</li>
-            <li class="log-item"><strong>Kurzspiel:</strong> Direktes Live-Spiel ohne Ranglisten- oder Statistikänderung.</li>
-            <li class="log-item"><strong>Timeout:</strong> Pro Eingabe laufen ${TURN_SECONDS / 60} Minuten. Danach kann der Gegner Timeout-Sieg reklamieren.</li>
-          </ul>
+      <div class="grid two public-sections">
+        <div id="publicRankingSection" class="card compact">
+          <div class="card-title-row">
+            <div>
+              <h2>Rangliste</h2>
+              <p class="muted">Öffentlich sichtbar. Zum Fordern bitte anmelden.</p>
+            </div>
+            <button class="btn ghost" data-action="refresh-public">Aktualisieren</button>
+          </div>
+          ${renderRankingTable(players, null, { showActions: false })}
         </div>
-        <div class="card compact">
-          <h2>Was dich erwartet</h2>
-          <ul class="log-list small">
-            <li class="log-item"><strong>Live-Duelle:</strong> Beide Spieler spielen wirklich auf zwei Geräten gegeneinander.</li>
-            <li class="log-item"><strong>Turniere:</strong> Mehrere Abendturniere mit Anmeldung, Tableau und Pokalen.</li>
-            <li class="log-item"><strong>Profil:</strong> Turniersiege und zweite Plätze werden dauerhaft gespeichert.</li>
-          </ul>
+
+        <div id="publicTournamentsSection" class="card compact">
+          <div class="card-title-row">
+            <div>
+              <h2>Turniere</h2>
+              <p class="muted">Geplante Abendturniere.</p>
+            </div>
+          </div>
+          ${renderTournaments(tournaments, null, false, false)}
         </div>
+      </div>
+
+      <div class="card compact">
+        <h2>Letzte Matches</h2>
+        ${renderRecentMatches(recentMatches)}
       </div>
     </section>`;
 }
@@ -656,6 +643,60 @@ function getTopPlayers(players, limit = 3) {
   return [...(players || [])]
     .sort((a, b) => (a.rank_position ?? 9999) - (b.rank_position ?? 9999))
     .slice(0, limit);
+}
+
+
+function renderPublicLandingOnly(players, tournaments) {
+  const topPlayers = getTopPlayers(players, 3);
+  const nextTournament = [...(tournaments || [])]
+    .filter(t => ["registration_open", "tableau_generated", "running"].includes(t.status))
+    .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())[0];
+
+  return `
+    <section class="clean-landing">
+      <div class="clean-hero-card">
+        <div class="clean-hero-bg"><img src="hero-tennis.png" alt="Tennisschläger und Tennisball auf einem Tennisplatz" /></div>
+        <div class="clean-hero-overlay"></div>
+        <div class="clean-hero-content">
+          <p class="eyebrow">Court Clash</p>
+          <h2>Court Clash</h2>
+          <p class="clean-claim">Fordere Spieler heraus. Gewinne Matches. Steig in der Rangliste.</p>
+          <div class="clean-info-row">
+            <span>Live-Matches</span>
+            <span>Rangliste</span>
+            <span>Turniere</span>
+          </div>
+          <div class="hero-actions clean-actions">
+            <button class="btn primary large" data-action="enter-public-app">Zum Spiel</button>
+            <button class="btn large" data-action="enter-public-ranking">Rangliste ansehen</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="clean-summary-grid">
+        <div class="card compact clean-summary-card">
+          <div class="card-title-row">
+            <div>
+              <p class="eyebrow">Top-Spieler</p>
+              <h2>Aktuelle Spitze</h2>
+            </div>
+            <span class="pill">Live</span>
+          </div>
+          ${topPlayers.length ? `<div class="mini-top-list">${topPlayers.map(player => `<div class="mini-top-row"><span class="rank">${player.rank_position}</span><strong>${escapeHtml(player.display_name)}</strong><span class="muted small">${player.wins}:${player.losses}</span></div>`).join("")}</div>` : `<p class="muted small">Noch keine Spieler vorhanden.</p>`}
+        </div>
+
+        <div class="card compact clean-summary-card">
+          <div class="card-title-row">
+            <div>
+              <p class="eyebrow">Nächstes Event</p>
+              <h2>Turnier</h2>
+            </div>
+            <span class="pill">Abend</span>
+          </div>
+          ${nextTournament ? `<p><strong>${escapeHtml(nextTournament.name)}</strong></p><p class="muted small">${tournamentStatusLabel(nextTournament.status)} · ${formatDate(nextTournament.starts_at)}</p>` : `<p class="muted small">Noch kein Turnier geplant.</p>`}
+        </div>
+      </div>
+    </section>`;
 }
 
 function renderLandingHero({ loggedIn = false, current = null, pendingApproval = false } = {}) {
@@ -870,27 +911,28 @@ function renderLobby() {
   } else {
     const myOpenChallenges = challenges.filter(challenge => [challenge.challenger_id, challenge.challenged_id].includes(currentId) && ["open", "accepted"].includes(challenge.status));
     const myLiveMatches = liveMatches.filter(match => [match.player_a_id, match.player_b_id].includes(currentId));
+    const nextTournament = [...tournaments]
+      .filter(t => ["registration_open", "tableau_generated", "running"].includes(t.status))
+      .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())[0];
     mainContent = `
-      ${renderLandingHero({ loggedIn: true, current })}
-      ${renderTopPlayersSection(players)}
-      ${renderFeatureNavCards(true)}
-      <div class="grid two">
-        <div class="card compact">
-          <h2>Dein Fokus</h2>
-          <div class="grid two quick-stats-grid">
-            <div class="score-card"><span class="label">Offene Forderungen</span><div class="score-number">${myOpenChallenges.length}</div></div>
-            <div class="score-card"><span class="label">Live-Spiele</span><div class="score-number">${myLiveMatches.length}</div></div>
-          </div>
-          <p class="muted small" style="margin-top:12px;">Gehe über die Kacheln direkt zu Rangliste, Spiele oder Turnieren.</p>
-        </div>
-        <div class="card compact">
-          <h2>Aktive Turniere</h2>
-          ${tournaments.length ? `<ul class="log-list small">${tournaments.slice(0, 4).map(t => `<li class="log-item"><strong>${escapeHtml(t.name)}</strong><br><span class="muted">${tournamentStatusLabel(t.status)} · Start ${formatDate(t.starts_at)}</span></li>`).join("")}</ul>` : `<p class="muted small">Noch keine Turniere angelegt.</p>`}
+      <div class="card compact clean-dashboard-head">
+        <div>
+          <p class="eyebrow">Court Clash</p>
+          <h2>Willkommen, ${escapeHtml(current?.display_name || "?")}</h2>
+          <p class="muted">Fordern, spielen oder Turnier anmelden. Details liegen in den einzelnen Bereichen.</p>
         </div>
       </div>
-      <div class="card compact">
-        <h2>Letzte Matches</h2>
-        ${renderRecentMatches(recentMatches)}
+
+      <div class="feature-grid compact-actions">
+        <button class="feature-tile" data-action="set-page" data-page="ranking"><span class="feature-icon">🎾</span><span class="feature-title">Rangliste</span><span class="feature-text">Fordere passende Gegner.</span></button>
+        <button class="feature-tile" data-action="set-page" data-page="matches"><span class="feature-icon">⚡</span><span class="feature-title">Spiele</span><span class="feature-text">Offene Forderungen und Live-Matches.</span></button>
+        <button class="feature-tile" data-action="set-page" data-page="tournaments"><span class="feature-icon">🏆</span><span class="feature-title">Turniere</span><span class="feature-text">Anmelden, Tableau, Pokale.</span></button>
+      </div>
+
+      <div class="grid three dashboard-stats">
+        <div class="score-card"><span class="label">Offene Forderungen</span><div class="score-number">${myOpenChallenges.length}</div></div>
+        <div class="score-card"><span class="label">Live-Spiele</span><div class="score-number">${myLiveMatches.length}</div></div>
+        <div class="score-card"><span class="label">Nächstes Turnier</span><div class="small">${nextTournament ? `${escapeHtml(nextTournament.name)}<br><span class="muted">${formatDate(nextTournament.starts_at)}</span>` : "Keins geplant"}</div></div>
       </div>`;
   }
 
@@ -1448,6 +1490,22 @@ app.addEventListener("click", event => {
       render();
     }
 
+    if (action === "enter-public-app") {
+      state.publicEntered = true;
+      render();
+    }
+
+    if (action === "back-public-landing") {
+      state.publicEntered = false;
+      render();
+    }
+
+    if (action === "enter-public-ranking") {
+      state.publicEntered = true;
+      render();
+      window.setTimeout(() => document.getElementById("publicRankingSection")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    }
+
     if (action === "scroll-login") {
       document.getElementById("publicAuthSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
@@ -1462,6 +1520,7 @@ app.addEventListener("click", event => {
 
     if (action === "logout") {
       clearSession();
+      state.publicEntered = false;
       await refreshLobby(false);
       state.view = "setup";
       render();

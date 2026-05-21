@@ -644,7 +644,7 @@ tr:last-child td {
 }
 
 
-/* v0.5.1 landing page */
+/* v0.6.0 landing page */
 
 .landing-stack {
   gap: 18px;
@@ -830,5 +830,231 @@ tr:last-child td {
 
   .landing-media {
     min-height: 260px;
+  }
+}
+
+
+/* v0.6.0 clean landing and mobile cleanup */
+
+.clean-landing {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+
+.clean-hero-card {
+  position: relative;
+  min-height: min(72vh, 680px);
+  border-radius: 34px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  background: #07110b;
+}
+
+.clean-hero-bg,
+.clean-hero-bg img,
+.clean-hero-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.clean-hero-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(1.08) contrast(1.04);
+}
+
+.clean-hero-overlay {
+  background:
+    radial-gradient(circle at 74% 36%, rgba(182, 255, 111, 0.13), transparent 28%),
+    linear-gradient(90deg, rgba(3, 10, 6, 0.92) 0%, rgba(3, 10, 6, 0.72) 46%, rgba(3, 10, 6, 0.28) 100%),
+    linear-gradient(180deg, rgba(3, 10, 6, 0.05) 0%, rgba(3, 10, 6, 0.72) 100%);
+}
+
+.clean-hero-content {
+  position: relative;
+  z-index: 1;
+  min-height: inherit;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: clamp(28px, 6vw, 72px);
+  max-width: 700px;
+}
+
+.clean-hero-content h2 {
+  font-size: clamp(3rem, 9vw, 7rem);
+  line-height: 0.9;
+  letter-spacing: -0.08em;
+  margin-bottom: 18px;
+}
+
+.clean-claim {
+  color: var(--text);
+  font-size: clamp(1.15rem, 2.4vw, 1.75rem);
+  max-width: 680px;
+  margin-bottom: 22px;
+}
+
+.clean-info-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.clean-info-row span {
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.09);
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.clean-summary-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 0.7fr;
+  gap: 16px;
+}
+
+.mini-top-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mini-top-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+}
+
+.app-entry-grid {
+  gap: 16px;
+}
+
+.entry-head,
+.clean-dashboard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.compact-actions .feature-tile {
+  min-height: 120px;
+}
+
+.dashboard-stats .score-card {
+  min-height: 118px;
+}
+
+@media (max-width: 720px) {
+  .app-header {
+    padding: 18px 12px 10px;
+  }
+
+  .app-header h1 {
+    font-size: 1.65rem;
+    letter-spacing: -0.04em;
+  }
+
+  .subtitle {
+    display: none;
+  }
+
+  .header-meta {
+    justify-content: flex-start;
+  }
+
+  .app-shell {
+    padding: 10px 10px 32px;
+  }
+
+  .clean-hero-card {
+    min-height: 76vh;
+    border-radius: 26px;
+  }
+
+  .clean-hero-overlay {
+    background:
+      linear-gradient(180deg, rgba(3,10,6,0.42) 0%, rgba(3,10,6,0.72) 42%, rgba(3,10,6,0.96) 100%);
+  }
+
+  .clean-hero-content {
+    justify-content: flex-end;
+    padding: 24px;
+  }
+
+  .clean-hero-content h2 {
+    font-size: clamp(3.1rem, 18vw, 5rem);
+  }
+
+  .clean-claim {
+    font-size: 1.08rem;
+  }
+
+  .clean-actions,
+  .hero-actions,
+  .btn-row {
+    width: 100%;
+  }
+
+  .clean-actions .btn,
+  .hero-actions .btn,
+  .btn-row .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .clean-summary-grid,
+  .setup-columns,
+  .dashboard-stats,
+  .feature-grid,
+  .grid.three {
+    grid-template-columns: 1fr;
+  }
+
+  .page-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+
+  .tab-btn {
+    white-space: nowrap;
+  }
+
+  .card {
+    border-radius: 22px;
+    padding: 16px;
+  }
+
+  .card.compact {
+    padding: 14px;
+  }
+
+  .entry-head,
+  .clean-dashboard-head,
+  .lobby-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .top-player-grid {
+    grid-template-columns: 1fr;
+  }
+
+  table {
+    font-size: 0.85rem;
   }
 }
