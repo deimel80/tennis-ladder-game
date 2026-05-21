@@ -1,4 +1,4 @@
-# Court Clash Live-Tiebreak v0.7.0
+# Court Clash Live-Tiebreak v0.7.1
 
 Statisches Browser-Spiel für GitHub Pages mit zentraler Supabase-Speicherung.
 
@@ -16,7 +16,7 @@ Für ein bestehendes Projekt:
    - `README.md`
 3. `config.js` unverändert lassen.
 
-## Neue Funktionen in v0.7.0
+## Neue Funktionen in v0.7.1
 
 - Geplante K.O.-Turniere:
   - Admin erstellt mehrere Turniere mit Name, Datum, Startzeit, Anmeldeschluss und maximaler Teilnehmerzahl.
@@ -64,20 +64,20 @@ Niemals einen Secret Key oder Service Role Key in `config.js` eintragen.
 - `config.example.js` – Beispiel für die Konfiguration
 
 
-## v0.7.0
+## v0.7.1
 
 - Oberfläche entzerrt: Übersicht/Rangliste, Spiele, Turniere und Admin sind getrennte Bereiche.
 - Turniere liegen auf eigener Seite im Spiel, damit die Rangliste nicht überladen wirkt.
 - Keine Datenbankänderung gegenüber v0.4.0 erforderlich.
 
 
-## Neu in v0.7.0
+## Neu in v0.7.1
 - schöne Startseite mit Hero-Bereich, Top-Spielern und Direkteinstiegen
 - öffentliche Startseite vor dem Login mit Link zur Rangliste und zum Login
 - neue Navigation mit separatem Start- und Ranglisten-Reiter
 
 
-## Neu in v0.7.0
+## Neu in v0.7.1
 - reduzierte öffentliche Startseite mit großem Tennisbild und klarem Einstieg
 - Button „Zum Spiel“ führt in den eigentlichen Spielbereich
 - öffentlicher Spielbereich vor Login deutlich entschlackt
@@ -85,17 +85,17 @@ Niemals einen Secret Key oder Service Role Key in `config.js` eintragen.
 - bessere Handy-Ansicht mit weniger Text und einspaltigen Karten
 
 
-## Neu in v0.7.0
+## Neu in v0.7.1
 - schönere Live-Top-Spieler-Karten auf der Startseite
 - Podium-Darstellung mit Rang, Bilanz, Turniersiegen und zweiten Plätzen
 - Startseiten-Topspieler bleiben aus den Supabase-Livedaten generiert
 
 
-## Neu in v0.7.0
+## Neu in v0.7.1
 - Nächstes Turnier direkt auf der Startseite
 - Spielerprofile mit Pokalen, Bilanz, Streak und Match-Historie
 - Hall of Fame für Turniersieger
 - Admin kann Spielernamen ändern
 - Ranglisten-Namen öffnen direkt das Profil
 
-Für v0.7.0 muss die database.sql einmal erneut in Supabase ausgeführt werden.
+Für v0.7.1 muss die database.sql einmal erneut in Supabase ausgeführt werden.

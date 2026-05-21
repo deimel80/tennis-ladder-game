@@ -1,4 +1,4 @@
-const VERSION = "0.7.0";
+const VERSION = "0.7.1";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -715,10 +715,13 @@ function renderLandingPodium(players) {
 
 function renderPublicLandingOnly(players, tournaments) {
   return `
-    <section class="clean-public-landing">
+    <section class="clean-public-landing clean-landing">
       <div class="clean-hero-card">
-        <img src="hero-tennis.png" alt="Tennisschläger und Tennisball auf einem Tennisplatz" />
-        <div class="clean-hero-overlay">
+        <div class="clean-hero-bg">
+          <img src="hero-tennis.png" alt="Tennisschläger und Tennisball auf einem Tennisplatz" />
+        </div>
+        <div class="clean-hero-overlay" aria-hidden="true"></div>
+        <div class="clean-hero-content">
           <p class="eyebrow">Court Clash</p>
           <h2>Court Clash</h2>
           <p class="clean-claim">Fordere Spieler heraus. Gewinne Matches. Steig in der Rangliste.</p>
@@ -730,9 +733,8 @@ function renderPublicLandingOnly(players, tournaments) {
           </div>
         </div>
       </div>
-      <div class="clean-summary-grid">
+      <div class="clean-summary-grid single">
         ${renderTopPlayersSection(players)}
-        ${renderHallOfFame(players, tournaments)}
       </div>
     </section>`;
 }
