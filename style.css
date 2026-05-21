@@ -1538,7 +1538,7 @@ tr:last-child td {
   border-radius: 22px;
   background: rgba(0,0,0,.16);
   padding: 16px;
-  min-height: 112px;
+  min-height: 108px;
   display: grid;
   align-content: space-between;
   gap: 8px;
@@ -1548,12 +1548,47 @@ tr:last-child td {
   font-weight: 850;
 }
 .profile-stat-tiles strong {
-  font-size: clamp(1.9rem, 4vw, 2.75rem);
+  font-size: clamp(1.7rem, 3.2vw, 2.35rem);
   line-height: .95;
   letter-spacing: -0.05em;
 }
 .profile-stat-tiles small {
   color: var(--muted-2);
+}
+.form-tile .form-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.form-tile .form-arrow {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+  line-height: 1;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.06);
+}
+.form-tile.up .form-arrow {
+  color: #8cff70;
+  background: rgba(140,255,112,0.12);
+  border-color: rgba(140,255,112,0.3);
+}
+.form-tile.down .form-arrow {
+  color: #ff7b7b;
+  background: rgba(255,123,123,0.12);
+  border-color: rgba(255,123,123,0.3);
+}
+.form-tile.neutral .form-arrow {
+  color: var(--muted);
+}
+.form-tile strong {
+  font-size: clamp(2rem, 3vw, 2.5rem);
+}
+.form-tile small {
+  line-height: 1.35;
 }
 .profile-history-card .profile-match-item {
   padding: 14px 16px;
@@ -1597,6 +1632,13 @@ tr:last-child td {
     padding: 14px;
   }
   .profile-stat-tiles strong {
+    font-size: 1.8rem;
+  }
+  .form-tile .form-arrow {
+    width: 34px;
+    height: 34px;
+  }
+  .form-tile strong {
     font-size: 2rem;
   }
   .profile-medal-strip span {

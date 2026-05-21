@@ -1,4 +1,4 @@
-const VERSION = "0.8.2";
+const VERSION = "0.8.3";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -886,6 +886,14 @@ function renderPlayerProfile(profile, currentId, isAdmin = false) {
   const initials = escapeHtml((player.display_name || "?").slice(0, 1).toUpperCase());
   const recent = matches.slice(0, 3);
 
+  const formClass = streak.type === "win" ? "up" : streak.type === "loss" ? "down" : "neutral";
+  const formArrow = streak.type === "win" ? "▲" : streak.type === "loss" ? "▼" : "•";
+  const formText = streak.type === "win"
+    ? `${streak.count} Sieg${streak.count === 1 ? "" : "e"} in Folge`
+    : streak.type === "loss"
+      ? `${streak.count} Niederlage${streak.count === 1 ? "" : "n"} in Folge`
+      : "Noch keine Serie";
+
   return `
     <section class="profile-page-pro">
       <div class="profile-card-pro">
@@ -904,10 +912,10 @@ function renderPlayerProfile(profile, currentId, isAdmin = false) {
       </div>
 
       <div class="profile-stat-tiles">
-        <article><span>Bilanz</span><strong>${player.wins}:${player.losses}</strong><small>Siege : Niederlagen</small></article>
-        <article><span>Siegquote</span><strong>${winRate}%</strong><small>aus Ranglisten- und Spielmatches</small></article>
-        <article><span>Punkte</span><strong>${player.points_for}:${player.points_against}</strong><small>gespielte Punkte</small></article>
-        <article><span>Form</span><strong>${escapeHtml(streak.shortLabel || streak.label)}</strong><small>aktuelle Serie</small></article>
+        <article class="stat-tile"><span>Bilanz</span><strong>${player.wins}:${player.losses}</strong><small>Siege : Niederlagen</small></article>
+        <article class="stat-tile"><span>Siegquote</span><strong>${winRate}%</strong><small>aus Ranglisten- und Spielmatches</small></article>
+        <article class="stat-tile"><span>Punkte</span><strong>${player.points_for}:${player.points_against}</strong><small>gespielte Punkte</small></article>
+        <article class="stat-tile form-tile ${formClass}"><span>Form</span><div class="form-indicator"><b class="form-arrow">${formArrow}</b><strong>${streak.count || 0}</strong></div><small>${escapeHtml(formText)}</small></article>
       </div>
 
       ${isAdmin ? `
