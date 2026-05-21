@@ -1,4 +1,4 @@
-const VERSION = "0.6.1";
+const VERSION = "0.7.0";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -49,7 +49,9 @@ const state = {
   tickTimer: null,
   lastLobbyRenderAt: 0,
   lobbyPage: "start",
-  publicEntered: false
+  publicEntered: false,
+  selectedProfileId: null,
+  playerProfile: null
 };
 
 versionBadge.textContent = `v${VERSION}`;
@@ -252,6 +254,30 @@ class RemoteStore {
     });
     if (error) throw error;
     return data;
+  }
+
+  async renamePlayer(playerId, displayName) {
+    const { data, error } = await this.client.rpc("admin_rename_player", {
+      p_session_token: state.session?.token,
+      p_player_id: playerId,
+      p_display_name: displayName
+    });
+    if (error) throw error;
+    return normalizePlayer(data);
+  }
+
+  async getPlayerProfile(playerId) {
+    const { data, error } = await this.client.rpc("get_player_profile", {
+      p_session_token: state.session?.token || null,
+      p_player_id: playerId
+    });
+    if (error) throw error;
+    const payload = typeof data === "string" ? JSON.parse(data) : data;
+    return {
+      player: normalizePlayer(payload.player),
+      matches: payload.matches || [],
+      tournaments: payload.tournaments || []
+    };
   }
 
   async startLiveMatch({ opponentId = null, challengeId = null }) {
@@ -603,7 +629,8 @@ function renderMainNav(activePage, isAdmin) {
     ["start", "Start"],
     ["ranking", "Rangliste"],
     ["matches", "Spiele"],
-    ["tournaments", "Turniere"]
+    ["tournaments", "Turniere"],
+    ["profile", "Profil"]
   ];
   if (isAdmin) tabs.push(["admin", "Admin"]);
   return `
@@ -614,14 +641,17 @@ function renderMainNav(activePage, isAdmin) {
 
 function renderProfileSummary(current) {
   return `
-    <div class="card compact">
-      <h2>Dein Stand</h2>
-      <div class="grid three">
-        <div class="score-card"><span class="label">Rang</span><div class="score-number" style="font-size:3rem">${current?.rank_position || "-"}</div></div>
-        <div class="score-card"><span class="label">Siege</span><div class="score-number" style="font-size:3rem">${current?.wins || 0}</div></div>
-        <div class="score-card"><span class="label">Niederlagen</span><div class="score-number" style="font-size:3rem">${current?.losses || 0}</div></div>
+    <div class="card compact profile-mini-card">
+      <div class="profile-avatar">${escapeHtml((current?.display_name || "?").slice(0, 1).toUpperCase())}</div>
+      <div>
+        <h2>Dein Stand</h2>
+        <p class="muted small">Rang ${current?.rank_position || "-"} · ${current?.wins || 0} Siege · ${current?.losses || 0} Niederlagen</p>
       </div>
-      <div class="notice small" style="margin-top:12px;">🏆 Turniersiege: <strong>${current?.tournament_wins || 0}</strong> · 🥈 Zweite Plätze: <strong>${current?.tournament_runnerups || 0}</strong></div>
+      <div class="mini-trophy-row">
+        <span class="pill">🏆 ${current?.tournament_wins || 0}</span>
+        <span class="pill">🥈 ${current?.tournament_runnerups || 0}</span>
+      </div>
+      <button class="btn ghost full" data-action="open-profile" data-player-id="${current?.id || ""}">Profil öffnen</button>
     </div>`;
 }
 
@@ -646,55 +676,63 @@ function getTopPlayers(players, limit = 3) {
 }
 
 
-function renderPublicLandingOnly(players, tournaments) {
+
+function renderLandingPodium(players) {
   const topPlayers = getTopPlayers(players, 3);
-  const nextTournament = [...(tournaments || [])]
-    .filter(t => ["registration_open", "tableau_generated", "running"].includes(t.status))
-    .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())[0];
+  const meta = [
+    { place: "1. Platz", medal: "🏆", className: "champion", label: "Spitze" },
+    { place: "2. Platz", medal: "🥈", className: "runner", label: "Jäger" },
+    { place: "3. Platz", medal: "🥉", className: "third", label: "Top 3" }
+  ];
+
+  if (!topPlayers.length) return `<p class="muted small">Noch keine Spieler vorhanden.</p>`;
 
   return `
-    <section class="clean-landing">
+    <div class="landing-podium">
+      ${topPlayers.map((player, index) => {
+        const item = meta[index] || meta[2];
+        const winLoss = `${player.wins || 0}:${player.losses || 0}`;
+        return `
+          <article class="podium-card ${item.className}">
+            <div class="podium-rank-watermark">${player.rank_position ?? index + 1}</div>
+            <div class="podium-medal">${item.medal}</div>
+            <div class="podium-body">
+              <div class="podium-place">${item.place}</div>
+              <h3>${escapeHtml(player.display_name)}</h3>
+              <div class="podium-badges">
+                <span>${item.label}</span>
+                <span>Bilanz ${winLoss}</span>
+              </div>
+              <div class="podium-stats">
+                <span><strong>${player.tournament_wins || 0}</strong><small>🏆 Siege</small></span>
+                <span><strong>${player.tournament_runnerups || 0}</strong><small>🥈 Finales</small></span>
+              </div>
+            </div>
+          </article>`;
+      }).join("")}
+    </div>`;
+}
+
+function renderPublicLandingOnly(players, tournaments) {
+  return `
+    <section class="clean-public-landing">
       <div class="clean-hero-card">
-        <div class="clean-hero-bg"><img src="hero-tennis.png" alt="Tennisschläger und Tennisball auf einem Tennisplatz" /></div>
-        <div class="clean-hero-overlay"></div>
-        <div class="clean-hero-content">
+        <img src="hero-tennis.png" alt="Tennisschläger und Tennisball auf einem Tennisplatz" />
+        <div class="clean-hero-overlay">
           <p class="eyebrow">Court Clash</p>
           <h2>Court Clash</h2>
           <p class="clean-claim">Fordere Spieler heraus. Gewinne Matches. Steig in der Rangliste.</p>
-          <div class="clean-info-row">
-            <span>Live-Matches</span>
-            <span>Rangliste</span>
-            <span>Turniere</span>
-          </div>
+          <div class="clean-info-row"><span>Live-Matches</span><span>Rangliste</span><span>Turniere</span></div>
+          ${renderNextTournamentCard(tournaments)}
           <div class="hero-actions clean-actions">
             <button class="btn primary large" data-action="enter-public-app">Zum Spiel</button>
             <button class="btn large" data-action="enter-public-ranking">Rangliste ansehen</button>
           </div>
         </div>
       </div>
-
       <div class="clean-summary-grid">
-        <div class="card compact clean-summary-card">
-          <div class="card-title-row">
-            <div>
-              <p class="eyebrow">Top-Spieler</p>
-              <h2>Aktuelle Spitze</h2>
-            </div>
-            <span class="pill">Live</span>
-          </div>
-          ${topPlayers.length ? `<div class="mini-top-list">${topPlayers.map(player => `<div class="mini-top-row"><span class="rank">${player.rank_position}</span><strong>${escapeHtml(player.display_name)}</strong><span class="muted small">${player.wins}:${player.losses}</span></div>`).join("")}</div>` : `<p class="muted small">Noch keine Spieler vorhanden.</p>`}
-        </div>
-
-        <div class="card compact clean-summary-card">
-          <div class="card-title-row">
-            <div>
-              <p class="eyebrow">Nächstes Event</p>
-              <h2>Turnier</h2>
-            </div>
-            <span class="pill">Abend</span>
-          </div>
-          ${nextTournament ? `<p><strong>${escapeHtml(nextTournament.name)}</strong></p><p class="muted small">${tournamentStatusLabel(nextTournament.status)} · ${formatDate(nextTournament.starts_at)}</p>` : `<p class="muted small">Noch kein Turnier geplant.</p>`}
-        </div>
+        ${renderTopPlayersSection(players)}
+        ${renderHallOfFame(players, tournaments)}
       </div>
     </section>`;
 }
@@ -731,36 +769,16 @@ function renderLandingHero({ loggedIn = false, current = null, pendingApproval =
 }
 
 function renderTopPlayersSection(players) {
-  const topPlayers = getTopPlayers(players, 3);
-  const styles = [
-    { place: "1. Platz", badge: "🏆", className: "gold" },
-    { place: "2. Platz", badge: "🥈", className: "silver" },
-    { place: "3. Platz", badge: "🥉", className: "bronze" }
-  ];
   return `
-    <section class="card compact">
+    <section class="card compact top-players-section">
       <div class="card-title-row">
         <div>
           <p class="eyebrow">Live aus der Rangliste</p>
           <h2>Aktuelle Top-Spieler</h2>
         </div>
-        <span class="pill">Top 3</span>
+        <span class="pill">automatisch aktuell</span>
       </div>
-      <div class="top-player-grid">
-        ${topPlayers.map((player, index) => {
-          const style = styles[index] || styles[styles.length - 1];
-          return `
-            <article class="top-player-card ${style.className}">
-              <div class="top-player-badge">${style.badge}</div>
-              <div class="top-player-copy">
-                <div class="muted small">${style.place}</div>
-                <h3>${escapeHtml(player.display_name)}</h3>
-                <p class="muted small">Siege ${player.wins} · Niederlagen ${player.losses} · 🏆 ${player.tournament_wins || 0} · 🥈 ${player.tournament_runnerups || 0}</p>
-              </div>
-              <div class="watermark-rank">${player.rank_position ?? index + 1}</div>
-            </article>`;
-        }).join("") || `<p class="muted">Noch keine Spieler vorhanden.</p>`}
-      </div>
+      ${renderLandingPodium(players)}
     </section>`;
 }
 
@@ -786,6 +804,131 @@ function renderFeatureNavCards(loggedIn = false) {
     </div>`;
 }
 
+
+function getNextTournament(tournaments) {
+  return [...(tournaments || [])]
+    .filter(t => ["registration_open", "tableau_generated", "running"].includes(t.status))
+    .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())[0] || null;
+}
+
+function computeCurrentStreak(matches, playerId) {
+  const playerMatches = [...(matches || [])]
+    .filter(m => m.player_a_id === playerId || m.player_b_id === playerId)
+    .sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime());
+  if (!playerMatches.length) return { type: "none", count: 0, label: "Noch keine Serie" };
+  const firstWon = playerMatches[0].winner_id === playerId;
+  let count = 0;
+  for (const match of playerMatches) {
+    if ((match.winner_id === playerId) === firstWon) count += 1;
+    else break;
+  }
+  return {
+    type: firstWon ? "win" : "loss",
+    count,
+    label: firstWon ? `${count} Sieg${count === 1 ? "" : "e"} in Folge` : `${count} Niederlage${count === 1 ? "" : "n"} in Folge`
+  };
+}
+
+function computeHallOfFame(players, tournaments) {
+  const byWins = [...(players || [])]
+    .filter(p => (p.tournament_wins || 0) > 0)
+    .sort((a, b) => (b.tournament_wins - a.tournament_wins) || (a.rank_position || 9999) - (b.rank_position || 9999))
+    .slice(0, 5);
+  const recentChampions = [...(tournaments || [])]
+    .filter(t => t.status === "completed" && t.winner_name)
+    .sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())
+    .slice(0, 5);
+  return { byWins, recentChampions };
+}
+
+function renderNextTournamentCard(tournaments) {
+  const next = getNextTournament(tournaments);
+  if (!next) {
+    return `
+      <div class="next-tournament-card muted-card">
+        <span class="feature-icon">🏆</span>
+        <div><strong>Nächstes Turnier</strong><br><span class="muted small">Noch kein Turnier geplant.</span></div>
+      </div>`;
+  }
+  return `
+    <div class="next-tournament-card">
+      <span class="feature-icon">🏆</span>
+      <div>
+        <strong>${escapeHtml(next.name)}</strong><br>
+        <span class="muted small">${formatDate(next.starts_at)} · ${tournamentStatusLabel(next.status)} · ${next.participant_count || 0}/${next.max_players}</span>
+      </div>
+    </div>`;
+}
+
+function renderHallOfFame(players, tournaments) {
+  const fame = computeHallOfFame(players, tournaments);
+  return `
+    <div class="card compact hall-card">
+      <div class="card-title-row">
+        <div><p class="eyebrow">Hall of Fame</p><h2>Turnierhelden</h2></div>
+        <span class="pill">🏆</span>
+      </div>
+      ${fame.byWins.length ? `<ul class="fame-list">${fame.byWins.map((p, idx) => `
+        <li><span class="rank-bubble">${idx + 1}</span><strong>${escapeHtml(p.display_name)}</strong><span>🏆 ${p.tournament_wins || 0} · 🥈 ${p.tournament_runnerups || 0}</span></li>`).join("")}</ul>` : `<p class="muted small">Noch keine Turniersieger vorhanden.</p>`}
+      ${fame.recentChampions.length ? `<h3 class="small-heading">Letzte Champions</h3><ul class="log-list small">${fame.recentChampions.map(t => `<li class="log-item"><strong>${escapeHtml(t.winner_name)}</strong><br><span class="muted">${escapeHtml(t.name)} · ${formatDate(t.starts_at)}</span></li>`).join("")}</ul>` : ""}
+    </div>`;
+}
+
+function renderPlayerProfile(profile, currentId, isAdmin = false) {
+  if (!profile?.player) return `<div class="card"><h2>Profil</h2><p class="muted">Profil wird geladen.</p></div>`;
+  const player = profile.player;
+  const matches = profile.matches || [];
+  const streak = computeCurrentStreak(matches, player.id);
+  const winRate = (player.wins + player.losses) > 0 ? Math.round((player.wins / (player.wins + player.losses)) * 100) : 0;
+  const isSelf = player.id === currentId;
+  return `
+    <div class="card profile-hero-card">
+      <div class="profile-avatar big">${escapeHtml((player.display_name || "?").slice(0, 1).toUpperCase())}</div>
+      <div class="profile-main-copy">
+        <p class="eyebrow">Spielerprofil</p>
+        <h2>${escapeHtml(player.display_name)}${isSelf ? ` <span class="pill">du</span>` : ""}</h2>
+        <p class="muted">Rang ${player.rank_position || "-"} · ${streak.label}</p>
+      </div>
+      <div class="profile-trophies">
+        <span class="trophy-big">🏆 <strong>${player.tournament_wins || 0}</strong><small>Turniersiege</small></span>
+        <span class="trophy-big">🥈 <strong>${player.tournament_runnerups || 0}</strong><small>Zweite Plätze</small></span>
+      </div>
+    </div>
+
+    <div class="grid four profile-stat-grid">
+      <div class="score-card"><span class="label">Siege</span><div class="score-number">${player.wins}</div></div>
+      <div class="score-card"><span class="label">Niederlagen</span><div class="score-number">${player.losses}</div></div>
+      <div class="score-card"><span class="label">Siegquote</span><div class="score-number">${winRate}%</div></div>
+      <div class="score-card"><span class="label">Punkte</span><div class="score-number small-number">${player.points_for}:${player.points_against}</div></div>
+    </div>
+
+    ${isAdmin ? `
+      <div class="card compact">
+        <h2>Admin: Namen ändern</h2>
+        <form class="form-grid rename-player-form" data-player-id="${player.id}">
+          <label class="field"><span>Neuer Name</span><input value="${escapeHtml(player.display_name)}" maxlength="30" required /></label>
+          <button class="btn primary" type="submit">Namen speichern</button>
+        </form>
+      </div>` : ""}
+
+    <div class="card compact">
+      <div class="card-title-row"><div><h2>Match-Historie</h2><p class="muted">Die letzten gespeicherten Matches dieses Spielers.</p></div><span class="pill">${matches.length}</span></div>
+      ${renderPlayerMatchHistory(matches, player.id)}
+    </div>`;
+}
+
+function renderPlayerMatchHistory(matches, playerId) {
+  if (!matches.length) return `<p class="muted">Noch keine Matches vorhanden.</p>`;
+  return `<ul class="profile-match-list">${matches.map(match => {
+    const won = match.winner_id === playerId;
+    const opponent = match.player_a_id === playerId ? match.player_b_name : match.player_a_name;
+    return `<li class="profile-match-item ${won ? "won" : "lost"}">
+      <div><strong>${won ? "Sieg" : "Niederlage"} gegen ${escapeHtml(opponent)}</strong><br><span class="muted small">${matchTypeLabel(match.match_type)} · ${formatDate(match.completed_at)}</span></div>
+      <div class="match-score">${match.score_a}:${match.score_b}</div>
+    </li>`;
+  }).join("")}</ul>`;
+}
+
 function renderLobby() {
   const currentId = state.session?.player?.id;
   const players = state.lobby?.players || [];
@@ -802,192 +945,83 @@ function renderLobby() {
   if (!isApproved) {
     let pendingMain = "";
     if (activePage === "tournaments") {
-      pendingMain = `
-        <div class="card">
-          <div class="card-title-row">
-            <div>
-              <h2>Turniere</h2>
-              <p class="muted">Du siehst Turniere, kannst dich aber erst nach Freigabe anmelden.</p>
-            </div>
-          </div>
-          ${renderTournaments(tournaments, current?.id, false, false)}
-        </div>`;
+      pendingMain = `<div class="card"><div class="card-title-row"><div><h2>Turniere</h2><p class="muted">Du siehst Turniere, kannst dich aber erst nach Freigabe anmelden.</p></div></div>${renderTournaments(tournaments, current?.id, false, false)}</div>`;
     } else if (activePage === "ranking") {
-      pendingMain = `
-        <div class="card">
-          <div class="card-title-row">
-            <div>
-              <h2>Rangliste</h2>
-              <p class="muted">Nur freigegebene Spieler erscheinen in der Tabelle.</p>
-            </div>
-          </div>
-          ${renderRankingTable(players, null, { showActions: false })}
-        </div>`;
+      pendingMain = `<div class="card"><div class="card-title-row"><div><h2>Rangliste</h2><p class="muted">Nur freigegebene Spieler erscheinen in der Tabelle.</p></div></div>${renderRankingTable(players, null, { showActions: false })}</div>`;
+    } else if (activePage === "profile") {
+      pendingMain = renderPlayerProfile(state.playerProfile || { player: current, matches: [] }, currentId, false);
     } else {
       pendingMain = `
         ${renderLandingHero({ loggedIn: true, current, pendingApproval: true })}
         ${renderTopPlayersSection(players)}
-        <div class="card compact">
-          <h2>Freigabe ausstehend</h2>
-          <p class="muted">Angemeldet als <strong>${escapeHtml(current?.display_name || "?")}</strong>. Dieses Konto ist noch nicht vom Admin freigegeben.</p>
-          <div class="notice small">Du kannst die öffentliche Rangliste und die Turniere sehen. Nach der Freigabe kannst du fordern, Kurzspiele starten und an Turnieren teilnehmen.</div>
-        </div>`;
+        <div class="card compact"><h2>Freigabe ausstehend</h2><p class="muted">Angemeldet als <strong>${escapeHtml(current?.display_name || "?")}</strong>. Dieses Konto ist noch nicht vom Admin freigegeben.</p><div class="notice small">Du kannst die öffentliche Rangliste und die Turniere sehen. Nach der Freigabe kannst du fordern, Kurzspiele starten und an Turnieren teilnehmen.</div></div>`;
     }
-
     app.innerHTML = `
       <section class="grid two">
         <div class="grid">
-          <div class="card compact lobby-head">
-            <div>
-              <p class="eyebrow">Angemeldet</p>
-              <h2>${escapeHtml(current?.display_name || "?")}</h2>
-            </div>
-            <div class="btn-row">
-              <button class="btn ghost" data-action="refresh">Aktualisieren</button>
-              <button class="btn ghost" data-action="logout">Abmelden</button>
-            </div>
-          </div>
-          ${renderMainNav(activePage, false)}
-          ${pendingMain}
+          <div class="card compact lobby-head"><div><p class="eyebrow">Angemeldet</p><h2>${escapeHtml(current?.display_name || "?")}</h2></div><div class="btn-row"><button class="btn ghost" data-action="refresh">Aktualisieren</button><button class="btn ghost" data-action="logout">Abmelden</button></div></div>
+          ${renderMainNav(activePage, false)}${pendingMain}
         </div>
-        <aside class="grid">
-          <div class="card compact"><h2>Status</h2><p class="muted small">Warte auf Admin-Freigabe. Nach der Freigabe bitte aktualisieren oder neu einloggen.</p></div>
-          <div class="card compact"><h2>Letzte Matches</h2>${renderRecentMatches(recentMatches)}</div>
-        </aside>
+        <aside class="grid"><div class="card compact"><h2>Status</h2><p class="muted small">Warte auf Admin-Freigabe. Nach der Freigabe bitte aktualisieren oder neu einloggen.</p></div><div class="card compact"><h2>Letzte Matches</h2>${renderRecentMatches(recentMatches)}</div></aside>
       </section>`;
     return;
   }
 
   let mainContent = "";
-
   if (activePage === "tournaments") {
-    mainContent = `
-      <div class="card">
-        <div class="card-title-row">
-          <div>
-            <h2>Turniere</h2>
-            <p class="muted">Geplante K.O.-Turniere mit Anmeldung, Tableau und Pokalen für Platz 1 und 2.</p>
-          </div>
-          <button class="btn ghost" data-action="refresh">Aktualisieren</button>
-        </div>
-        ${isAdmin ? renderTournamentAdminForm() : ""}
-        ${renderTournaments(tournaments, currentId, isApproved, isAdmin)}
-      </div>`;
+    mainContent = `<div class="card"><div class="card-title-row"><div><h2>Turniere</h2><p class="muted">Geplante K.O.-Turniere mit Anmeldung, Tableau und Pokalen für Platz 1 und 2.</p></div><button class="btn ghost" data-action="refresh">Aktualisieren</button></div>${isAdmin ? renderTournamentAdminForm() : ""}${renderTournaments(tournaments, currentId, isApproved, isAdmin)}</div>`;
   } else if (activePage === "matches") {
-    mainContent = `
-      <div class="card">
-        <div class="card-title-row">
-          <div>
-            <h2>Live-Spiele</h2>
-            <p class="muted">Laufende Matches, bei denen du beteiligt bist.</p>
-          </div>
-          <button class="btn ghost" data-action="refresh">Aktualisieren</button>
-        </div>
-        ${renderLiveMatches(liveMatches, currentId)}
-      </div>
-      <div class="card">
-        <div class="card-title-row">
-          <div>
-            <h2>Forderungen</h2>
-            <p class="muted">Ranglistenspiele laufen über Fordern → Annehmen → Live-Spiel starten.</p>
-          </div>
-        </div>
-        ${renderChallenges(challenges, currentId)}
-      </div>`;
+    mainContent = `<div class="card"><div class="card-title-row"><div><h2>Live-Spiele</h2><p class="muted">Laufende Matches, bei denen du beteiligt bist.</p></div><button class="btn ghost" data-action="refresh">Aktualisieren</button></div>${renderLiveMatches(liveMatches, currentId)}</div><div class="card"><div class="card-title-row"><div><h2>Forderungen</h2><p class="muted">Ranglistenspiele laufen über Fordern → Annehmen → Live-Spiel starten.</p></div></div>${renderChallenges(challenges, currentId)}</div>`;
   } else if (activePage === "admin" && isAdmin) {
-    mainContent = `${renderAdminPanel(pendingPlayers)}`;
+    mainContent = `${renderAdminPanel(pendingPlayers, players)}`;
   } else if (activePage === "ranking") {
-    mainContent = `
-      <div class="card">
-        <div class="card-title-row">
-          <div>
-            <h2>Rangliste</h2>
-            <p class="muted">Angemeldet als <strong>${escapeHtml(current?.display_name || "?")}</strong>${isAdmin ? ` <span class="pill">Admin</span>` : ""}. Forderungen sind ranglistenrelevant, Kurzspiele nicht.</p>
-          </div>
-          <button class="btn ghost" data-action="refresh">Aktualisieren</button>
-        </div>
-        ${renderRankingTable(players, currentId)}
-      </div>`;
+    mainContent = `<div class="card"><div class="card-title-row"><div><h2>Rangliste</h2><p class="muted">Forderungen sind ranglistenrelevant, Kurzspiele nicht.</p></div><button class="btn ghost" data-action="refresh">Aktualisieren</button></div>${renderRankingTable(players, currentId)}</div>`;
+  } else if (activePage === "profile") {
+    const fallback = { player: players.find(p => p.id === (state.selectedProfileId || currentId)) || current, matches: recentMatches.filter(m => [m.player_a_id, m.player_b_id].includes(state.selectedProfileId || currentId)) };
+    mainContent = renderPlayerProfile(state.playerProfile || fallback, currentId, isAdmin);
   } else {
     const myOpenChallenges = challenges.filter(challenge => [challenge.challenger_id, challenge.challenged_id].includes(currentId) && ["open", "accepted"].includes(challenge.status));
     const myLiveMatches = liveMatches.filter(match => [match.player_a_id, match.player_b_id].includes(currentId));
-    const nextTournament = [...tournaments]
-      .filter(t => ["registration_open", "tableau_generated", "running"].includes(t.status))
-      .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())[0];
+    const nextTournament = getNextTournament(tournaments);
     mainContent = `
-      <div class="card compact clean-dashboard-head">
-        <div>
-          <p class="eyebrow">Court Clash</p>
-          <h2>Willkommen, ${escapeHtml(current?.display_name || "?")}</h2>
-          <p class="muted">Fordern, spielen oder Turnier anmelden. Details liegen in den einzelnen Bereichen.</p>
-        </div>
-      </div>
-
+      <div class="card compact clean-dashboard-head"><div><p class="eyebrow">Court Clash</p><h2>Willkommen, ${escapeHtml(current?.display_name || "?")}</h2><p class="muted">Fordern, spielen oder Turnier anmelden. Details liegen in den einzelnen Bereichen.</p></div></div>
+      ${renderNextTournamentCard(tournaments)}
       <div class="feature-grid compact-actions">
         <button class="feature-tile" data-action="set-page" data-page="ranking"><span class="feature-icon">🎾</span><span class="feature-title">Rangliste</span><span class="feature-text">Fordere passende Gegner.</span></button>
         <button class="feature-tile" data-action="set-page" data-page="matches"><span class="feature-icon">⚡</span><span class="feature-title">Spiele</span><span class="feature-text">Offene Forderungen und Live-Matches.</span></button>
         <button class="feature-tile" data-action="set-page" data-page="tournaments"><span class="feature-icon">🏆</span><span class="feature-title">Turniere</span><span class="feature-text">Anmelden, Tableau, Pokale.</span></button>
       </div>
-
       <div class="grid three dashboard-stats">
         <div class="score-card"><span class="label">Offene Forderungen</span><div class="score-number">${myOpenChallenges.length}</div></div>
         <div class="score-card"><span class="label">Live-Spiele</span><div class="score-number">${myLiveMatches.length}</div></div>
         <div class="score-card"><span class="label">Nächstes Turnier</span><div class="small">${nextTournament ? `${escapeHtml(nextTournament.name)}<br><span class="muted">${formatDate(nextTournament.starts_at)}</span>` : "Keins geplant"}</div></div>
-      </div>`;
+      </div>
+      ${renderHallOfFame(players, tournaments)}`;
   }
 
   app.innerHTML = `
     <section class="grid two">
       <div class="grid">
-        <div class="card compact lobby-head">
-          <div>
-            <p class="eyebrow">Angemeldet</p>
-            <h2>${escapeHtml(current?.display_name || "?")}${isAdmin ? ` <span class="pill">Admin</span>` : ""}</h2>
-          </div>
-          <div class="btn-row">
-            <button class="btn ghost" data-action="refresh">Aktualisieren</button>
-            <button class="btn ghost" data-action="logout">Abmelden</button>
-          </div>
-        </div>
-        ${renderMainNav(activePage, isAdmin)}
-        ${mainContent}
+        <div class="card compact lobby-head"><div><p class="eyebrow">Angemeldet</p><h2>${escapeHtml(current?.display_name || "?")}${isAdmin ? ` <span class="pill">Admin</span>` : ""}</h2></div><div class="btn-row"><button class="btn ghost" data-action="refresh">Aktualisieren</button><button class="btn ghost" data-action="logout">Abmelden</button></div></div>
+        ${renderMainNav(activePage, isAdmin)}${mainContent}
       </div>
-
-      <aside class="grid">
-        ${renderProfileSummary(current)}
-        ${activePage === "start" ? renderRulesCard() : ""}
-        <div class="card compact">
-          <h2>Letzte Matches</h2>
-          ${renderRecentMatches(recentMatches)}
-        </div>
-      </aside>
+      <aside class="grid">${renderProfileSummary(current)}${activePage === "start" ? renderRulesCard() : ""}<div class="card compact"><h2>Letzte Matches</h2>${renderRecentMatches(recentMatches)}</div></aside>
     </section>`;
 }
-function renderAdminPanel(pendingPlayers) {
+function renderAdminPanel(pendingPlayers, players = []) {
   return `
-    <div class="card">
-      <div class="card-title-row">
-        <div>
-          <h2>Admin: Spieler-Freigaben</h2>
-          <p class="muted">Neue Registrierungen erscheinen erst nach Freigabe in der Rangliste.</p>
-        </div>
-        <span class="pill">${pendingPlayers.length} offen</span>
+    <div class="grid">
+      <div class="card">
+        <div class="card-title-row"><div><h2>Admin: Spieler-Freigaben</h2><p class="muted">Neue Registrierungen erscheinen erst nach Freigabe in der Rangliste.</p></div><span class="pill">${pendingPlayers.length} offen</span></div>
+        ${!pendingPlayers.length ? `<p class="muted">Keine offenen Freigaben.</p>` : `<ul class="challenge-list">${pendingPlayers.map(player => `
+          <li class="challenge-item"><div class="challenge-title"><span>${escapeHtml(player.display_name)}</span><span class="status open">wartet</span></div><p class="muted small">Noch nicht in der Rangliste. Freigabe hängt ihn hinten an.</p><div class="btn-row"><button class="btn primary" data-action="approve-player" data-player-id="${player.id}">Freigeben</button><button class="btn danger" data-action="reject-player" data-player-id="${player.id}">Ablehnen/löschen</button></div></li>`).join("")}</ul>`}
       </div>
-      ${!pendingPlayers.length ? `<p class="muted">Keine offenen Freigaben.</p>` : `
-        <ul class="challenge-list">
-          ${pendingPlayers.map(player => `
-            <li class="challenge-item">
-              <div class="challenge-title">
-                <span>${escapeHtml(player.display_name)}</span>
-                <span class="status open">wartet</span>
-              </div>
-              <p class="muted small">Noch nicht in der Rangliste. Freigabe hängt ihn hinten an.</p>
-              <div class="btn-row">
-                <button class="btn primary" data-action="approve-player" data-player-id="${player.id}">Freigeben</button>
-                <button class="btn danger" data-action="reject-player" data-player-id="${player.id}">Ablehnen/löschen</button>
-              </div>
-            </li>`).join("")}
-        </ul>`}
+      <div class="card">
+        <div class="card-title-row"><div><h2>Admin: Spieler verwalten</h2><p class="muted">Namen ändern oder Profil öffnen.</p></div></div>
+        <div class="admin-player-grid">
+          ${players.map(player => `<div class="admin-player-row"><strong>${escapeHtml(player.display_name)}</strong><span class="muted small">Rang ${player.rank_position}</span><div class="btn-row"><button class="btn ghost" data-action="open-profile" data-player-id="${player.id}">Profil</button><button class="btn" data-action="prompt-rename-player" data-player-id="${player.id}" data-player-name="${escapeHtml(player.display_name)}">Name ändern</button></div></div>`).join("") || `<p class="muted">Keine Spieler vorhanden.</p>`}
+        </div>
+      </div>
     </div>`;
 }
 
@@ -1000,7 +1034,7 @@ function renderRankingTable(players, currentId, options = {}) {
     return `
       <tr>
         <td><span class="rank">${player.rank_position ?? "-"}</span></td>
-        <td><strong>${escapeHtml(player.display_name)}</strong>${isSelf ? ` <span class="pill">du</span>` : ""}<div class="muted small">🏆 ${player.tournament_wins || 0} · 🥈 ${player.tournament_runnerups || 0}</div></td>
+        <td>${showActions ? `<button class="link-button" data-action="open-profile" data-player-id="${player.id}"><strong>${escapeHtml(player.display_name)}</strong></button>` : `<strong>${escapeHtml(player.display_name)}</strong>`}${isSelf ? ` <span class="pill">du</span>` : ""}<div class="muted small">🏆 ${player.tournament_wins || 0} · 🥈 ${player.tournament_runnerups || 0}</div></td>
         <td>${player.wins}</td>
         <td>${player.losses}</td>
         <td>${player.points_for}:${player.points_against}</td>
@@ -1453,6 +1487,18 @@ app.addEventListener("submit", event => {
     });
   }
 
+  if (form.classList.contains("rename-player-form")) {
+    safeAction(async () => {
+      const playerId = form.dataset.playerId;
+      const input = form.querySelector("input");
+      await state.store.renamePlayer(playerId, input.value);
+      await refreshLobby(false);
+      state.playerProfile = await state.store.getPlayerProfile(playerId);
+      render();
+      showToast("Spielername geändert.");
+    });
+  }
+
   if (form.id === "tournamentForm") {
     safeAction(async () => {
       await state.store.createTournament({
@@ -1482,11 +1528,20 @@ app.addEventListener("click", event => {
   safeAction(async () => {
     if (action === "refresh" || action === "refresh-public") {
       await refreshLobby(true);
+      if (state.lobbyPage === "profile" && state.selectedProfileId) {
+        state.playerProfile = await state.store.getPlayerProfile(state.selectedProfileId);
+      }
       render();
     }
 
     if (action === "set-page") {
       state.lobbyPage = button.dataset.page || "start";
+      if (state.lobbyPage === "profile") {
+        state.selectedProfileId = state.session?.player?.id || null;
+        state.playerProfile = state.selectedProfileId ? await state.store.getPlayerProfile(state.selectedProfileId) : null;
+      } else {
+        state.playerProfile = null;
+      }
       render();
     }
 
@@ -1516,6 +1571,26 @@ app.addEventListener("click", event => {
 
     if (action === "scroll-tournaments") {
       document.getElementById("publicTournamentsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+
+    if (action === "open-profile") {
+      state.selectedProfileId = playerId || state.session?.player?.id;
+      state.playerProfile = await state.store.getPlayerProfile(state.selectedProfileId);
+      state.lobbyPage = "profile";
+      state.view = "lobby";
+      render();
+    }
+
+    if (action === "prompt-rename-player") {
+      const currentName = button.dataset.playerName || "";
+      const newName = window.prompt("Neuer Spielername", currentName);
+      if (newName && newName.trim() && newName.trim() !== currentName) {
+        await state.store.renamePlayer(playerId, newName.trim());
+        await refreshLobby(false);
+        render();
+        showToast("Spielername geändert.");
+      }
     }
 
     if (action === "logout") {
