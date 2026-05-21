@@ -1,7 +1,5 @@
-const VERSION = "0.1.1";
+const VERSION = "0.1.2";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v010";
-const STORAGE_DEMO_KEY = "tennis_ladder_demo_db_v010";
-
 const SERVES = [
   { id: "slice_wide", label: "Slice außen", family: "slice", zone: "wide", fault: 0.08, power: 0.70, ace: 0.06 },
   { id: "slice_middle", label: "Slice Mitte", family: "slice", zone: "middle", fault: 0.06, power: 0.56, ace: 0.035 },
@@ -32,8 +30,6 @@ const PASSING_SHOTS = [
   { id: "lob", label: "Lob über Netzspieler", family: "defense", zone: "deep", error: 0.085, winner: 0.065, force: 0.14 },
   { id: "topspin_hard", label: "Hart auf die Füße", family: "topspin", zone: "body", error: 0.095, winner: 0.08, force: 0.15 }
 ];
-
-const DEMO_PLAYERS = ["Stefan", "Alex", "Ben", "Chris", "Daniel", "Markus"];
 
 const app = document.getElementById("app");
 const toastHost = document.getElementById("toastHost");
@@ -206,229 +202,22 @@ class RemoteStore {
   }
 }
 
-class DemoStore {
-  constructor() {
-    this.db = this.loadDb();
-  }
-
-  loadDb() {
-    const existing = localStorage.getItem(STORAGE_DEMO_KEY);
-    if (existing) return JSON.parse(existing);
-
-    const players = DEMO_PLAYERS.map((name, index) => ({
-      id: randomId(),
-      display_name: name,
-      pin: "1234",
-      rank_position: index + 1,
-      wins: 0,
-      losses: 0,
-      points_for: 0,
-      points_against: 0,
-      created_at: nowIso()
-    }));
-    const db = { players, challenges: [], matches: [] };
-    localStorage.setItem(STORAGE_DEMO_KEY, JSON.stringify(db));
-    return db;
-  }
-
-  saveDb() {
-    localStorage.setItem(STORAGE_DEMO_KEY, JSON.stringify(this.db));
-  }
-
-  async registerPlayer(displayName, pin) {
-    const cleanName = displayName.trim();
-    if (!cleanName || cleanName.length < 2) throw new Error("Name zu kurz.");
-    if (!/^\d{4}$/.test(pin)) throw new Error("PIN muss aus 4 Ziffern bestehen.");
-    if (this.db.players.some(p => p.display_name.toLowerCase() === cleanName.toLowerCase())) {
-      throw new Error("Diesen Spieler gibt es bereits.");
-    }
-    const player = {
-      id: randomId(),
-      display_name: cleanName,
-      pin,
-      rank_position: this.db.players.length + 1,
-      wins: 0,
-      losses: 0,
-      points_for: 0,
-      points_against: 0,
-      created_at: nowIso()
-    };
-    this.db.players.push(player);
-    this.saveDb();
-    return { token: randomId(), player: normalizePlayer(player) };
-  }
-
-  async loginPlayer(displayName, pin) {
-    const player = this.db.players.find(p => p.display_name.toLowerCase() === displayName.trim().toLowerCase());
-    if (!player || player.pin !== pin) throw new Error("Name oder PIN falsch. Demo-Spieler haben PIN 1234.");
-    return { token: randomId(), player: normalizePlayer(player) };
-  }
-
-  async getLobby() {
-    return {
-      players: this.db.players.map(normalizePlayer).sort((a, b) => a.rank_position - b.rank_position),
-      challenges: this.db.challenges
-        .slice()
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 30),
-      recent_matches: this.db.matches
-        .slice()
-        .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
-        .slice(0, 10)
-    };
-  }
-
-  async createChallenge(challengedId) {
-    const challenger = this.findCurrentPlayer();
-    const challenged = this.db.players.find(p => p.id === challengedId);
-    if (!challenger || !challenged) throw new Error("Spieler nicht gefunden.");
-    if (challenger.id === challenged.id) throw new Error("Du kannst dich nicht selbst fordern.");
-    const duplicate = this.db.challenges.find(c =>
-      c.status !== "completed" && c.status !== "cancelled" &&
-      ((c.challenger_id === challenger.id && c.challenged_id === challenged.id) ||
-       (c.challenger_id === challenged.id && c.challenged_id === challenger.id))
-    );
-    if (duplicate) throw new Error("Zwischen diesen Spielern gibt es bereits eine offene Forderung.");
-
-    const challenge = this.decorateChallenge({
-      id: randomId(),
-      challenger_id: challenger.id,
-      challenged_id: challenged.id,
-      status: "open",
-      created_at: nowIso(),
-      accepted_at: null,
-      completed_at: null,
-      winner_id: null,
-      loser_id: null,
-      match_id: null
-    });
-    this.db.challenges.push(challenge);
-    this.saveDb();
-    return challenge;
-  }
-
-  async acceptChallenge(challengeId) {
-    const current = this.findCurrentPlayer();
-    const challenge = this.db.challenges.find(c => c.id === challengeId);
-    if (!challenge) throw new Error("Forderung nicht gefunden.");
-    if (challenge.challenged_id !== current.id) throw new Error("Nur der geforderte Spieler kann annehmen.");
-    if (challenge.status !== "open") throw new Error("Diese Forderung ist nicht offen.");
-    challenge.status = "accepted";
-    challenge.accepted_at = nowIso();
-    this.saveDb();
-    return challenge;
-  }
-
-  async cancelChallenge(challengeId) {
-    const current = this.findCurrentPlayer();
-    const challenge = this.db.challenges.find(c => c.id === challengeId);
-    if (!challenge) throw new Error("Forderung nicht gefunden.");
-    if (![challenge.challenger_id, challenge.challenged_id].includes(current.id)) {
-      throw new Error("Nur beteiligte Spieler können abbrechen.");
-    }
-    if (!["open", "accepted"].includes(challenge.status)) throw new Error("Diese Forderung kann nicht mehr abgebrochen werden.");
-    challenge.status = "cancelled";
-    this.saveDb();
-    return challenge;
-  }
-
-  async submitMatch(payload) {
-    const playerA = this.db.players.find(p => p.id === payload.playerAId);
-    const playerB = this.db.players.find(p => p.id === payload.playerBId);
-    const winner = this.db.players.find(p => p.id === payload.winnerId);
-    const loser = winner?.id === playerA?.id ? playerB : playerA;
-    if (!playerA || !playerB || !winner || !loser) throw new Error("Spielerdaten unvollständig.");
-
-    const match = {
-      id: randomId(),
-      challenge_id: payload.challengeId || null,
-      player_a_id: playerA.id,
-      player_b_id: playerB.id,
-      player_a_name: playerA.display_name,
-      player_b_name: playerB.display_name,
-      winner_id: winner.id,
-      winner_name: winner.display_name,
-      loser_id: loser.id,
-      loser_name: loser.display_name,
-      score_a: payload.scoreA,
-      score_b: payload.scoreB,
-      match_log: payload.matchLog,
-      completed_at: nowIso()
-    };
-    this.db.matches.push(match);
-
-    winner.wins += 1;
-    loser.losses += 1;
-    winner.points_for += winner.id === playerA.id ? payload.scoreA : payload.scoreB;
-    winner.points_against += winner.id === playerA.id ? payload.scoreB : payload.scoreA;
-    loser.points_for += loser.id === playerA.id ? payload.scoreA : payload.scoreB;
-    loser.points_against += loser.id === playerA.id ? payload.scoreB : payload.scoreA;
-    this.applyRankingChange(winner, loser);
-
-    if (payload.challengeId) {
-      const challenge = this.db.challenges.find(c => c.id === payload.challengeId);
-      if (challenge) {
-        challenge.status = "completed";
-        challenge.completed_at = nowIso();
-        challenge.match_id = match.id;
-        challenge.winner_id = winner.id;
-        challenge.loser_id = loser.id;
-        Object.assign(challenge, this.decorateChallenge(challenge));
-      }
-    }
-
-    this.saveDb();
-    return match;
-  }
-
-  applyRankingChange(winner, loser) {
-    const winnerRank = winner.rank_position;
-    const loserRank = loser.rank_position;
-    if (winnerRank <= loserRank) return;
-
-    this.db.players.forEach(player => {
-      if (player.id === winner.id) {
-        player.rank_position = loserRank;
-      } else if (player.rank_position >= loserRank && player.rank_position < winnerRank) {
-        player.rank_position += 1;
-      }
-    });
-  }
-
-  findCurrentPlayer() {
-    return this.db.players.find(p => p.id === state.session?.player?.id);
-  }
-
-  decorateChallenge(challenge) {
-    const challenger = this.db.players.find(p => p.id === challenge.challenger_id);
-    const challenged = this.db.players.find(p => p.id === challenge.challenged_id);
-    const winner = this.db.players.find(p => p.id === challenge.winner_id);
-    const loser = this.db.players.find(p => p.id === challenge.loser_id);
-    return {
-      ...challenge,
-      challenger_name: challenger?.display_name || "?",
-      challenger_rank: challenger?.rank_position || null,
-      challenged_name: challenged?.display_name || "?",
-      challenged_rank: challenged?.rank_position || null,
-      winner_name: winner?.display_name || null,
-      loser_name: loser?.display_name || null
-    };
-  }
-}
-
 async function init() {
   const config = window.TENNIS_CONFIG || {};
   const hasRemoteConfig = Boolean(config.supabaseUrl && config.supabaseAnonKey && window.supabase);
 
-  if (hasRemoteConfig) {
-    state.isRemote = true;
-    state.store = new RemoteStore(config.supabaseUrl, config.supabaseAnonKey);
-    setConnectionBadge("ok", "Supabase aktiv");
-  } else {
+  if (!hasRemoteConfig) {
     state.isRemote = false;
-    state.store = new DemoStore();
-    setConnectionBadge("demo", "Demo-Modus");
+    state.store = null;
+    state.view = "configError";
+    setConnectionBadge("error", "Supabase fehlt");
+    render();
+    return;
   }
+
+  state.isRemote = true;
+  state.store = new RemoteStore(config.supabaseUrl, config.supabaseAnonKey);
+  setConnectionBadge("ok", "Supabase aktiv");
 
   const storedSession = localStorage.getItem(STORAGE_SESSION_KEY);
   if (storedSession) {
@@ -460,6 +249,7 @@ function clearSession() {
 }
 
 function render() {
+  if (state.view === "configError") return renderConfigError();
   if (state.view === "setup") return renderSetup();
   if (state.view === "lobby") return renderLobby();
   if (state.view === "match") return renderMatch();
@@ -474,6 +264,21 @@ function renderLoading() {
         <h2>Spiel wird geladen</h2>
         <p>Konfiguration und Rangliste werden vorbereitet.</p>
       </div>
+    </section>`;
+}
+
+function renderConfigError() {
+  app.innerHTML = `
+    <section class="card">
+      <h2>Supabase-Konfiguration fehlt</h2>
+      <p class="muted">Diese Version nutzt keine lokalen Demo-Daten mehr. Prüfe die Datei <strong>config.js</strong> im GitHub-Repository.</p>
+      <div class="notice small">
+        In <strong>config.js</strong> müssen <strong>supabaseUrl</strong> und <strong>supabaseAnonKey</strong> gefüllt sein. Lade beim Update nicht versehentlich eine leere config.js hoch.
+      </div>
+      <pre><code>window.TENNIS_CONFIG = {
+  supabaseUrl: "https://DEIN-PROJEKT.supabase.co",
+  supabaseAnonKey: "DEIN-PUBLISHABLE-ODER-ANON-KEY"
+};</code></pre>
     </section>`;
 }
 
@@ -501,14 +306,9 @@ function renderSetup() {
               <h2>Anmelden</h2>
               <p class="muted">Melde dich mit Spielername und 4-stelliger PIN an.</p>
             </div>
-            ${state.isRemote ? "" : `<span class="pill danger">nicht zentral</span>`}
           </div>
 
-          ${state.isRemote ? `
-            <div class="success small">Supabase ist konfiguriert. Rangliste, Forderungen und Matches werden zentral gespeichert.</div>
-          ` : `
-            <div class="notice small"><strong>Demo-Modus:</strong> Ohne Supabase-Konfiguration wird nur in diesem Browser gespeichert. Für deine Kumpel muss config.js mit Supabase-Werten gefüllt und database.sql ausgeführt werden.</div>
-          `}
+          <div class="success small">Supabase ist aktiv. Rangliste, Forderungen und Matches werden zentral gespeichert.</div>
 
           <div class="setup-columns" style="margin-top: 16px;">
             <form id="loginForm" class="card compact form-grid">
@@ -522,7 +322,6 @@ function renderSetup() {
                 <input id="loginPin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="1234" required />
               </label>
               <button class="btn primary" type="submit">Einloggen</button>
-              ${state.isRemote ? "" : `<p class="muted small">Demo-Spieler: Stefan, Alex, Ben, Chris, Daniel, Markus · PIN jeweils 1234</p>`}
             </form>
 
             <form id="registerForm" class="card compact form-grid">
@@ -610,12 +409,6 @@ function renderLobby() {
           ${renderRecentMatches(recentMatches)}
         </div>
 
-        ${state.isRemote ? "" : `
-          <div class="card compact">
-            <h2>Demo-Daten</h2>
-            <p class="muted small">Löscht nur die lokalen Demo-Spieler, Forderungen und Matches in diesem Browser.</p>
-            <button class="btn danger" data-action="reset-demo">Demo zurücksetzen</button>
-          </div>`}
       </aside>
     </section>`;
 }
@@ -853,7 +646,7 @@ function renderMatchOverPhase() {
   return `
     <div class="choice-card">
       <p class="point-text">Match beendet: ${escapeHtml(getSidePlayer(winner).display_name)} gewinnt ${game.scoreA}:${game.scoreB}.</p>
-      <p class="muted">Das Ergebnis wird in Supabase gespeichert, wenn Supabase konfiguriert ist. Im Demo-Modus bleibt es nur in diesem Browser.</p>
+      <p class="muted">Das Ergebnis wird zentral in Supabase gespeichert und aktualisiert danach die Rangliste.</p>
       <div class="btn-row">
         <button class="btn primary" data-action="save-match">Ergebnis speichern</button>
         <button class="btn ghost" data-action="back-lobby">Nicht speichern</button>
@@ -1287,15 +1080,6 @@ app.addEventListener("click", event => {
       render();
     }
 
-    if (action === "reset-demo") {
-      localStorage.removeItem(STORAGE_DEMO_KEY);
-      clearSession();
-      state.store = new DemoStore();
-      await refreshLobby(false);
-      state.view = "setup";
-      render();
-      showToast("Demo-Daten zurückgesetzt.");
-    }
   });
 });
 
