@@ -1,12 +1,50 @@
-# Tennis Ladder Live-Tiebreak v0.2.1
+# Tennis Ladder Live-Tiebreak v0.4.1
 
-Diese Version nutzt GitHub Pages als statisches Frontend und Supabase als zentrale Datenbank.
+Statisches Browser-Spiel für GitHub Pages mit zentraler Supabase-Speicherung.
 
-## Wichtig vor dem Hochladen
+## Wichtig beim Update
 
-Die ZIP enthält bewusst keine `config.js`, damit deine funktionierende Supabase-Konfiguration nicht überschrieben wird.
+Diese ZIP enthält bewusst keine produktive `config.js`. Deine bestehende `config.js` mit Supabase-URL und Publishable/Anon-Key darf nicht überschrieben werden.
 
-Auf GitHub muss deine vorhandene `config.js` erhalten bleiben:
+Für ein bestehendes Projekt:
+
+1. `database.sql` in Supabase komplett ausführen.
+2. Auf GitHub diese Dateien ersetzen:
+   - `index.html`
+   - `style.css`
+   - `app.js`
+   - `README.md`
+3. `config.js` unverändert lassen.
+
+## Neue Funktionen in v0.4.1
+
+- Geplante K.O.-Turniere:
+  - Admin erstellt mehrere Turniere mit Name, Datum, Startzeit, Anmeldeschluss und maximaler Teilnehmerzahl.
+  - Spieler melden sich für Turniere an oder ab, solange die Anmeldung offen ist.
+  - Admin generiert ein Tableau mit Freilosen.
+  - Turniermatches laufen als echtes Zwei-Geräte-Live-Spiel.
+  - Turniersieger und Zweitplatzierte werden gespeichert.
+  - Profil/Rangliste zeigen Pokale: 🏆 Turniersiege und 🥈 zweite Plätze.
+  - Turniere zählen nicht automatisch für die Rangliste.
+- Ranglisten-Forderungen sind begrenzt:
+  - Top 3: nur den direkt davor platzierten Spieler.
+  - Top 10: maximal 2 Plätze nach oben.
+  - ab Rang 11: maximal 5 Plätze nach oben.
+- Neue Spieler starten nach Admin-Freigabe unten in der Rangliste.
+- Pro Spieler ist nur eine aktive Forderung oder ein laufendes Live-Spiel erlaubt.
+- Offene Forderungen laufen nach 24 Stunden ab.
+- Angenommene Forderungen laufen nach 30 Minuten ab, wenn kein Spiel gestartet wird.
+- Gleicher Gegner ist erst nach 12 Stunden wieder ranglistenrelevant forderbar.
+- Kurzspiel eingebaut:
+  - direkt aus der Rangliste startbar.
+  - echtes Live-Spiel über zwei Geräte.
+  - zählt nicht für Rangliste und nicht für Statistik.
+- Timeout bleibt bei 5 Minuten pro Eingabe.
+- Spielziel bleibt für Tests: erster Spieler mit 3 Punkten gewinnt, ohne 2-Punkte-Abstand.
+
+## Supabase-Konfiguration
+
+`config.js` muss im GitHub-Repository liegen:
 
 ```js
 window.TENNIS_CONFIG = {
@@ -15,51 +53,19 @@ window.TENNIS_CONFIG = {
 };
 ```
 
-## Update von v0.2.0 auf v0.2.1
+Niemals einen Secret Key oder Service Role Key in `config.js` eintragen.
 
-1. In Supabase den SQL Editor öffnen.
-2. Den kompletten Inhalt aus `database.sql` einfügen.
-3. `Run` ausführen.
-4. Danach auf GitHub diese Dateien ersetzen:
-   - `index.html`
-   - `style.css`
-   - `app.js`
-   - `README.md`
-5. `config.js` nicht ersetzen.
+## Dateien
 
-## Neue Funktionen in v0.2.1
+- `index.html` – Oberfläche
+- `style.css` – Layout und Optik
+- `app.js` – Spiellogik und Supabase-Anbindung
+- `database.sql` – Tabellen, Regeln und RPC-Funktionen für Supabase
+- `config.example.js` – Beispiel für die Konfiguration
 
-- Neue Spieler werden nach Registrierung nicht sofort in die Rangliste aufgenommen.
-- Ein Admin muss neue Spieler freigeben.
-- Freigegebene Spieler werden unten an die Rangliste angehängt.
-- Admins sehen im Lobby-Bereich eine Freigabeliste.
-- Der direkte Live-Match-Button wurde aus der Rangliste entfernt; direkte Live-Spiele sind auch serverseitig deaktiviert.
-- Der saubere Ablauf ist jetzt: `Fordern -> Annehmen -> Live-Spiel starten`.
-- Gute Schläge, Service-Winner, perfekt gelesene Returns und Drucksituationen bekommen zusätzliche Sprüche im Punkttext.
 
-## Admin-Hinweis
+## v0.4.1
 
-Beim ersten leeren Setup wird der erste registrierte Spieler automatisch Admin und direkt freigegeben.
-
-Bei bestehenden Installationen setzt das SQL vorhandene Spieler auf freigegeben. Falls ein Spieler `Stefan` existiert, wird dieser automatisch Admin. Wenn nicht, wird der bestplatzierte vorhandene Spieler Admin.
-
-## Aktuelle Testregeln
-
-- Erster Spieler mit 3 Punkten gewinnt.
-- Kein 2-Punkte-Abstand.
-- Aufschlagfolge: Münzwurf, dann 1-2-2 wie im Match-Tiebreak.
-- Pro Eingabe läuft eine 5-Minuten-Frist.
-- Nach Ablauf kann der andere Spieler einen Timeout-Sieg reklamieren.
-
-## Ablauf Ranglistenspiel
-
-1. Spieler A fordert Spieler B.
-2. Spieler B nimmt die Forderung an.
-3. Einer der beiden startet das Live-Spiel aus der Forderung.
-4. Beide Spieler spielen auf ihren eigenen Geräten.
-5. Das Ergebnis wird automatisch gespeichert.
-6. Die Rangliste wird bei einem Sieg gegen einen höher platzierten Spieler automatisch angepasst.
-
-## Technischer Hinweis
-
-Das Live-Spiel nutzt Polling statt Supabase Realtime. Das ist für GitHub Pages einfacher, robuster und reicht für diese Spielform aus.
+- Oberfläche entzerrt: Übersicht/Rangliste, Spiele, Turniere und Admin sind getrennte Bereiche.
+- Turniere liegen auf eigener Seite im Spiel, damit die Rangliste nicht überladen wirkt.
+- Keine Datenbankänderung gegenüber v0.4.0 erforderlich.

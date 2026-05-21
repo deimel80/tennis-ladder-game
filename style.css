@@ -524,3 +524,121 @@ tr:last-child td {
     min-height: auto;
   }
 }
+
+.admin-details {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: rgba(255,255,255,0.035);
+}
+
+.admin-details summary {
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.tournament-form {
+  margin-top: 14px;
+}
+
+.tournament-list {
+  display: grid;
+  gap: 14px;
+}
+
+.tournament-card {
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.035);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+}
+
+.bracket {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.bracket-round {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.bracket-round h4 {
+  margin: 0 0 8px;
+  color: var(--accent);
+}
+
+.bracket-match {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  margin-bottom: 8px;
+  background: rgba(0,0,0,0.12);
+}
+
+.bracket-match.ready {
+  border-color: rgba(111,255,211,0.30);
+}
+
+.bracket-match.completed,
+.bracket-match.bye {
+  border-color: rgba(255,211,111,0.28);
+}
+
+.page-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: rgba(255,255,255,0.035);
+}
+
+.tab-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  color: var(--text);
+  background: rgba(255,255,255,0.06);
+}
+
+.tab-btn.active {
+  color: var(--text);
+  border-color: rgba(111,255,211,0.35);
+  background: rgba(111,255,211,0.12);
+}
+
+.lobby-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+@media (max-width: 700px) {
+  .lobby-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .page-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  .tab-btn {
+    white-space: nowrap;
+  }
+}

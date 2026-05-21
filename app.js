@@ -1,4 +1,4 @@
-const VERSION = "0.3.0";
+const VERSION = "0.4.1";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -47,7 +47,8 @@ const state = {
   view: "loading",
   pollTimer: null,
   tickTimer: null,
-  lastLobbyRenderAt: 0
+  lastLobbyRenderAt: 0,
+  lobbyPage: "home"
 };
 
 versionBadge.textContent = `v${VERSION}`;
@@ -80,7 +81,9 @@ function normalizePlayer(raw) {
     can_challenge: raw.can_challenge === undefined ? null : Boolean(raw.can_challenge),
     challenge_block_reason: raw.challenge_block_reason || "",
     max_challenge_jump: raw.max_challenge_jump == null ? null : Number(raw.max_challenge_jump),
-    quick_match_allowed: raw.quick_match_allowed === undefined ? null : Boolean(raw.quick_match_allowed)
+    quick_match_allowed: raw.quick_match_allowed === undefined ? null : Boolean(raw.quick_match_allowed),
+    tournament_wins: Number(raw.tournament_wins || 0),
+    tournament_runnerups: Number(raw.tournament_runnerups || 0)
   };
 }
 
@@ -113,6 +116,44 @@ function statusLabel(status) {
 function formatDate(value) {
   if (!value) return "";
   return new Date(value).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
+}
+
+function formatDateTimeLocal(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function localInputToIso(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+function matchTypeLabel(type) {
+  if (type === "quick") return "Kurzspiel";
+  if (type === "tournament") return "Turnier";
+  return "Rangliste";
+}
+
+function tournamentStatusLabel(status) {
+  const labels = {
+    registration_open: "Anmeldung offen",
+    tableau_generated: "Tableau bereit",
+    running: "läuft",
+    completed: "beendet",
+    cancelled: "abgesagt"
+  };
+  return labels[status] || status;
+}
+
+function roundLabel(roundNo, maxRound) {
+  if (roundNo === maxRound) return "Finale";
+  if (roundNo === maxRound - 1) return "Halbfinale";
+  if (roundNo === maxRound - 2) return "Viertelfinale";
+  return `Runde ${roundNo}`;
 }
 
 function secondsRemaining(deadline) {
@@ -226,6 +267,63 @@ class RemoteStore {
     return this.startLiveMatch({ opponentId, challengeId: null });
   }
 
+  async createTournament(payload) {
+    const { data, error } = await this.client.rpc("create_tournament", {
+      p_session_token: state.session?.token,
+      p_name: payload.name,
+      p_starts_at: payload.startsAt,
+      p_registration_deadline: payload.registrationDeadline,
+      p_max_players: payload.maxPlayers
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async joinTournament(tournamentId) {
+    const { data, error } = await this.client.rpc("join_tournament", {
+      p_session_token: state.session?.token,
+      p_tournament_id: tournamentId
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async leaveTournament(tournamentId) {
+    const { data, error } = await this.client.rpc("leave_tournament", {
+      p_session_token: state.session?.token,
+      p_tournament_id: tournamentId
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async generateTournamentBracket(tournamentId) {
+    const { data, error } = await this.client.rpc("generate_tournament_bracket", {
+      p_session_token: state.session?.token,
+      p_tournament_id: tournamentId
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async cancelTournament(tournamentId) {
+    const { data, error } = await this.client.rpc("cancel_tournament", {
+      p_session_token: state.session?.token,
+      p_tournament_id: tournamentId
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async startTournamentMatch(tournamentMatchId) {
+    const { data, error } = await this.client.rpc("start_tournament_match", {
+      p_session_token: state.session?.token,
+      p_tournament_match_id: tournamentMatchId
+    });
+    if (error) throw error;
+    return this.normalizeLiveMatch(data);
+  }
+
   async getLiveMatch(matchId) {
     const { data, error } = await this.client.rpc("get_live_match", {
       p_session_token: state.session?.token,
@@ -280,6 +378,7 @@ class RemoteStore {
       challenges: payload.challenges || [],
       recent_matches: payload.recent_matches || [],
       live_matches: payload.live_matches || [],
+      tournaments: payload.tournaments || [],
       rules: payload.rules || {}
     };
   }
@@ -418,6 +517,7 @@ function renderConfigError() {
 function renderSetup() {
   const players = state.lobby?.players || [];
   const recentMatches = state.lobby?.recent_matches || [];
+  const tournaments = state.lobby?.tournaments || [];
 
   app.innerHTML = `
     <section class="grid two">
@@ -431,6 +531,16 @@ function renderSetup() {
             <button class="btn ghost" data-action="refresh-public">Aktualisieren</button>
           </div>
           ${renderRankingTable(players, null, { showActions: false })}
+        </div>
+
+        <div class="card">
+          <div class="card-title-row">
+            <div>
+              <h2>Turniere</h2>
+              <p class="muted">Geplante Abendturniere. Zum Anmelden bitte einloggen.</p>
+            </div>
+          </div>
+          ${renderTournaments(tournaments, null, false, false)}
         </div>
 
         <div class="card">
@@ -474,6 +584,46 @@ function renderSetup() {
     </section>`;
 }
 
+function renderMainNav(activePage, isAdmin) {
+  const tabs = [
+    ["home", "Übersicht"],
+    ["matches", "Spiele"],
+    ["tournaments", "Turniere"]
+  ];
+  if (isAdmin) tabs.push(["admin", "Admin"]);
+  return `
+    <nav class="page-tabs" aria-label="Hauptbereiche">
+      ${tabs.map(([page, label]) => `<button class="tab-btn ${activePage === page ? "active" : ""}" data-action="set-page" data-page="${page}">${label}</button>`).join("")}
+    </nav>`;
+}
+
+function renderProfileSummary(current) {
+  return `
+    <div class="card compact">
+      <h2>Dein Stand</h2>
+      <div class="grid three">
+        <div class="score-card"><span class="label">Rang</span><div class="score-number" style="font-size:3rem">${current?.rank_position || "-"}</div></div>
+        <div class="score-card"><span class="label">Siege</span><div class="score-number" style="font-size:3rem">${current?.wins || 0}</div></div>
+        <div class="score-card"><span class="label">Niederlagen</span><div class="score-number" style="font-size:3rem">${current?.losses || 0}</div></div>
+      </div>
+      <div class="notice small" style="margin-top:12px;">🏆 Turniersiege: <strong>${current?.tournament_wins || 0}</strong> · 🥈 Zweite Plätze: <strong>${current?.tournament_runnerups || 0}</strong></div>
+    </div>`;
+}
+
+function renderRulesCard() {
+  return `
+    <div class="card compact">
+      <h2>Aktuelle Regeln</h2>
+      <ul class="log-list small">
+        <li class="log-item"><strong>Gewinn:</strong> erster Spieler mit ${WIN_POINTS} Punkten.</li>
+        <li class="log-item"><strong>Fordern:</strong> Top 3 nur direkt davor, Top 10 maximal 2 Plätze, danach maximal 5 Plätze nach oben.</li>
+        <li class="log-item"><strong>Sperre:</strong> pro Spieler nur eine aktive Forderung oder ein laufendes Live-Spiel.</li>
+        <li class="log-item"><strong>Ablauf:</strong> offene Forderung 24 Stunden, angenommene Forderung 30 Minuten bis Spielstart.</li>
+        <li class="log-item"><strong>Kurzspiel:</strong> zählt nicht für Rangliste und Statistik.</li>
+      </ul>
+    </div>`;
+}
+
 function renderLobby() {
   const currentId = state.session?.player?.id;
   const players = state.lobby?.players || [];
@@ -482,6 +632,7 @@ function renderLobby() {
   const recentMatches = state.lobby?.recent_matches || [];
   const liveMatches = state.lobby?.live_matches || [];
   const pendingPlayers = state.lobby?.pending_players || [];
+  const tournaments = state.lobby?.tournaments || [];
   const isApproved = Boolean(current?.is_approved);
   const isAdmin = Boolean(current?.is_admin);
 
@@ -502,89 +653,108 @@ function renderLobby() {
             </div>
             <div class="notice small">Du kannst die öffentliche Rangliste sehen, aber noch keine Forderungen erstellen oder Live-Spiele starten.</div>
           </div>
-          <div class="card">
-            <div class="card-title-row">
-              <div>
-                <h2>Rangliste</h2>
-                <p class="muted">Nur freigegebene Spieler erscheinen in der Tabelle.</p>
+          ${renderMainNav(state.lobbyPage, false)}
+          ${state.lobbyPage === "tournaments" ? `
+            <div class="card">
+              <div class="card-title-row">
+                <div>
+                  <h2>Turniere</h2>
+                  <p class="muted">Du siehst Turniere, kannst dich aber erst nach Freigabe anmelden.</p>
+                </div>
               </div>
-            </div>
-            ${renderRankingTable(players, null, { showActions: false })}
-          </div>
+              ${renderTournaments(tournaments, current?.id, false, false)}
+            </div>` : `
+            <div class="card">
+              <div class="card-title-row">
+                <div>
+                  <h2>Rangliste</h2>
+                  <p class="muted">Nur freigegebene Spieler erscheinen in der Tabelle.</p>
+                </div>
+              </div>
+              ${renderRankingTable(players, null, { showActions: false })}
+            </div>`}
         </div>
         <aside class="grid">
-          <div class="card compact">
-            <h2>Status</h2>
-            <p class="muted small">Warte auf Admin-Freigabe. Nach der Freigabe bitte aktualisieren oder neu einloggen.</p>
-          </div>
-          <div class="card compact">
-            <h2>Letzte Matches</h2>
-            ${renderRecentMatches(recentMatches)}
-          </div>
+          <div class="card compact"><h2>Status</h2><p class="muted small">Warte auf Admin-Freigabe. Nach der Freigabe bitte aktualisieren oder neu einloggen.</p></div>
+          <div class="card compact"><h2>Letzte Matches</h2>${renderRecentMatches(recentMatches)}</div>
         </aside>
       </section>`;
     return;
   }
 
+  const activePage = state.lobbyPage || "home";
+  let mainContent = "";
+
+  if (activePage === "tournaments") {
+    mainContent = `
+      <div class="card">
+        <div class="card-title-row">
+          <div>
+            <h2>Turniere</h2>
+            <p class="muted">Geplante K.O.-Turniere mit Anmeldung, Tableau und Pokalen für Platz 1 und 2.</p>
+          </div>
+          <button class="btn ghost" data-action="refresh">Aktualisieren</button>
+        </div>
+        ${isAdmin ? renderTournamentAdminForm() : ""}
+        ${renderTournaments(tournaments, currentId, isApproved, isAdmin)}
+      </div>`;
+  } else if (activePage === "matches") {
+    mainContent = `
+      <div class="card">
+        <div class="card-title-row">
+          <div>
+            <h2>Live-Spiele</h2>
+            <p class="muted">Laufende Matches, bei denen du beteiligt bist.</p>
+          </div>
+          <button class="btn ghost" data-action="refresh">Aktualisieren</button>
+        </div>
+        ${renderLiveMatches(liveMatches, currentId)}
+      </div>
+      <div class="card">
+        <div class="card-title-row">
+          <div>
+            <h2>Forderungen</h2>
+            <p class="muted">Ranglistenspiele laufen über Fordern → Annehmen → Live-Spiel starten.</p>
+          </div>
+        </div>
+        ${renderChallenges(challenges, currentId)}
+      </div>`;
+  } else if (activePage === "admin" && isAdmin) {
+    mainContent = `${renderAdminPanel(pendingPlayers)}`;
+  } else {
+    mainContent = `
+      <div class="card">
+        <div class="card-title-row">
+          <div>
+            <h2>Rangliste</h2>
+            <p class="muted">Angemeldet als <strong>${escapeHtml(current?.display_name || "?")}</strong>${isAdmin ? ` <span class="pill">Admin</span>` : ""}. Forderungen sind ranglistenrelevant, Kurzspiele nicht.</p>
+          </div>
+          <button class="btn ghost" data-action="refresh">Aktualisieren</button>
+        </div>
+        ${renderRankingTable(players, currentId)}
+      </div>`;
+  }
+
   app.innerHTML = `
     <section class="grid two">
       <div class="grid">
-        <div class="card">
-          <div class="card-title-row">
-            <div>
-              <h2>Rangliste</h2>
-              <p class="muted">Angemeldet als <strong>${escapeHtml(current?.display_name || "?")}</strong>${isAdmin ? ` <span class="pill">Admin</span>` : ""}. Forderungen sind ranglistenrelevant.</p>
-            </div>
-            <div class="btn-row">
-              <button class="btn ghost" data-action="refresh">Aktualisieren</button>
-              <button class="btn ghost" data-action="logout">Abmelden</button>
-            </div>
+        <div class="card compact lobby-head">
+          <div>
+            <p class="eyebrow">Angemeldet</p>
+            <h2>${escapeHtml(current?.display_name || "?")}${isAdmin ? ` <span class="pill">Admin</span>` : ""}</h2>
           </div>
-          ${renderRankingTable(players, currentId)}
-        </div>
-
-        ${isAdmin ? renderAdminPanel(pendingPlayers) : ""}
-
-        <div class="card">
-          <div class="card-title-row">
-            <div>
-              <h2>Live-Spiele</h2>
-              <p class="muted">Laufende Matches, bei denen du beteiligt bist.</p>
-            </div>
+          <div class="btn-row">
+            <button class="btn ghost" data-action="refresh">Aktualisieren</button>
+            <button class="btn ghost" data-action="logout">Abmelden</button>
           </div>
-          ${renderLiveMatches(liveMatches, currentId)}
         </div>
-
-        <div class="card">
-          <div class="card-title-row">
-            <div>
-              <h2>Forderungen</h2>
-              <p class="muted">Nach Annahme kann daraus ein echtes Zwei-Geräte-Live-Spiel gestartet werden.</p>
-            </div>
-          </div>
-          ${renderChallenges(challenges, currentId)}
-        </div>
+        ${renderMainNav(activePage, isAdmin)}
+        ${mainContent}
       </div>
 
       <aside class="grid">
-        <div class="card compact">
-          <h2>Dein Stand</h2>
-          <div class="grid three">
-            <div class="score-card"><span class="label">Rang</span><div class="score-number" style="font-size:3rem">${current?.rank_position || "-"}</div></div>
-            <div class="score-card"><span class="label">Siege</span><div class="score-number" style="font-size:3rem">${current?.wins || 0}</div></div>
-            <div class="score-card"><span class="label">Niederlagen</span><div class="score-number" style="font-size:3rem">${current?.losses || 0}</div></div>
-          </div>
-        </div>
-        <div class="card compact">
-          <h2>Aktuelle Regeln</h2>
-          <ul class="log-list small">
-            <li class="log-item"><strong>Gewinn:</strong> erster Spieler mit ${WIN_POINTS} Punkten.</li>
-            <li class="log-item"><strong>Fordern:</strong> Top 3 nur direkt davor, Top 10 maximal 2 Plätze, danach maximal 5 Plätze nach oben.</li>
-            <li class="log-item"><strong>Sperre:</strong> pro Spieler nur eine aktive Forderung oder ein laufendes Live-Spiel.</li>
-            <li class="log-item"><strong>Ablauf:</strong> offene Forderung 24 Stunden, angenommene Forderung 30 Minuten bis Spielstart.</li>
-            <li class="log-item"><strong>Kurzspiel:</strong> zählt nicht für Rangliste und Statistik.</li>
-          </ul>
-        </div>
+        ${renderProfileSummary(current)}
+        ${activePage === "home" ? renderRulesCard() : ""}
         <div class="card compact">
           <h2>Letzte Matches</h2>
           ${renderRecentMatches(recentMatches)}
@@ -592,7 +762,6 @@ function renderLobby() {
       </aside>
     </section>`;
 }
-
 function renderAdminPanel(pendingPlayers) {
   return `
     <div class="card">
@@ -630,7 +799,7 @@ function renderRankingTable(players, currentId, options = {}) {
     return `
       <tr>
         <td><span class="rank">${player.rank_position ?? "-"}</span></td>
-        <td><strong>${escapeHtml(player.display_name)}</strong>${isSelf ? ` <span class="pill">du</span>` : ""}</td>
+        <td><strong>${escapeHtml(player.display_name)}</strong>${isSelf ? ` <span class="pill">du</span>` : ""}<div class="muted small">🏆 ${player.tournament_wins || 0} · 🥈 ${player.tournament_runnerups || 0}</div></td>
         <td>${player.wins}</td>
         <td>${player.losses}</td>
         <td>${player.points_for}:${player.points_against}</td>
@@ -666,7 +835,7 @@ function renderLiveMatches(liveMatches, currentId) {
           <li class="challenge-item">
             <div class="challenge-title">
               <span>${escapeHtml(match.player_a_name)} ${match.score_a}:${match.score_b} ${escapeHtml(match.player_b_name)}</span>
-              <span class="status ${match.status}">${match.match_type === "quick" ? "Kurzspiel" : "Rangliste"} · ${myTurn ? "du bist dran" : statusLabel(match.status)}</span>
+              <span class="status ${match.status}">${matchTypeLabel(match.match_type)} · ${myTurn ? "du bist dran" : statusLabel(match.status)}</span>
             </div>
             <p class="muted small">Gegner: ${escapeHtml(opponent)} · Phase: ${escapeHtml(phaseLabel(match.phase))} · aktualisiert: ${formatDate(match.updated_at)}</p>
             <button class="btn primary" data-action="open-live" data-live-match-id="${match.id}">${myTurn ? "Jetzt spielen" : "Zum Spiel"}</button>
@@ -705,13 +874,94 @@ function renderChallenges(challenges, currentId) {
     </ul>`;
 }
 
+function renderTournamentAdminForm() {
+  const now = new Date();
+  const start = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  const deadline = new Date(start.getTime() - 15 * 60 * 1000);
+  return `
+    <details class="admin-details">
+      <summary>Neues Turnier anlegen</summary>
+      <form id="tournamentForm" class="form-grid tournament-form">
+        <label class="field"><span>Name</span><input id="tournamentName" placeholder="Freitagabend-Cup" required maxlength="60" /></label>
+        <div class="grid two">
+          <label class="field"><span>Start</span><input id="tournamentStart" type="datetime-local" value="${formatDateTimeLocal(start)}" required /></label>
+          <label class="field"><span>Anmeldeschluss</span><input id="tournamentDeadline" type="datetime-local" value="${formatDateTimeLocal(deadline)}" required /></label>
+        </div>
+        <label class="field"><span>Max. Teilnehmer</span><select id="tournamentMaxPlayers"><option>4</option><option selected>8</option><option>16</option><option>32</option><option>64</option></select></label>
+        <button class="btn primary" type="submit">Turnier erstellen</button>
+      </form>
+    </details>`;
+}
+
+function renderTournaments(tournaments, currentId, canJoin, isAdmin) {
+  if (!tournaments.length) return `<p class="muted">Noch keine Turniere angelegt.</p>`;
+  return `
+    <div class="tournament-list">
+      ${tournaments.map(t => {
+        const entries = t.entries || [];
+        const matches = t.matches || [];
+        const maxRound = matches.reduce((max, m) => Math.max(max, Number(m.round_no || 0)), 0);
+        const joined = Boolean(t.current_player_joined);
+        const registrationOpen = t.status === "registration_open" && new Date(t.registration_deadline).getTime() > Date.now();
+        const hasFreeSlot = Number(t.participant_count || 0) < Number(t.max_players || 0);
+        const canGenerate = isAdmin && t.status === "registration_open" && Number(t.participant_count || 0) >= 2;
+        return `
+          <article class="tournament-card">
+            <div class="challenge-title">
+              <span>${escapeHtml(t.name)}</span>
+              <span class="status ${escapeHtml(t.status)}">${tournamentStatusLabel(t.status)}</span>
+            </div>
+            <p class="muted small">Start: ${formatDate(t.starts_at)} · Anmeldung bis: ${formatDate(t.registration_deadline)} · Teilnehmer: ${t.participant_count || 0}/${t.max_players}</p>
+            ${t.status === "completed" ? `<div class="success small">🏆 Sieger: <strong>${escapeHtml(t.winner_name || "?")}</strong>${t.runner_up_name ? ` · 🥈 Zweiter: <strong>${escapeHtml(t.runner_up_name)}</strong>` : ""}</div>` : ""}
+            <div class="btn-row">
+              ${canJoin && registrationOpen && hasFreeSlot && !joined ? `<button class="btn primary" data-action="join-tournament" data-tournament-id="${t.id}">Anmelden</button>` : ""}
+              ${canJoin && registrationOpen && joined ? `<button class="btn danger" data-action="leave-tournament" data-tournament-id="${t.id}">Abmelden</button>` : ""}
+              ${canGenerate ? `<button class="btn primary" data-action="generate-tournament" data-tournament-id="${t.id}">Tableau generieren</button>` : ""}
+              ${isAdmin && t.status !== "completed" && t.status !== "cancelled" ? `<button class="btn ghost" data-action="cancel-tournament" data-tournament-id="${t.id}">Absagen</button>` : ""}
+            </div>
+            ${entries.length ? `<div class="muted small">Angemeldet: ${entries.map(e => escapeHtml(e.display_name)).join(", ")}</div>` : `<div class="muted small">Noch keine Anmeldungen.</div>`}
+            ${matches.length ? renderTournamentBracket(matches, currentId, maxRound, t.status) : ""}
+          </article>`;
+      }).join("")}
+    </div>`;
+}
+
+function renderTournamentBracket(matches, currentId, maxRound, tournamentStatus) {
+  const grouped = new Map();
+  matches.forEach(match => {
+    const round = Number(match.round_no || 0);
+    if (!grouped.has(round)) grouped.set(round, []);
+    grouped.get(round).push(match);
+  });
+  return `
+    <div class="bracket">
+      ${Array.from(grouped.entries()).sort((a, b) => a[0] - b[0]).map(([round, roundMatches]) => `
+        <div class="bracket-round">
+          <h4>${roundLabel(round, maxRound)}</h4>
+          ${roundMatches.map(match => {
+            const iAmParticipant = currentId && [match.player_a_id, match.player_b_id].includes(currentId);
+            const canStart = iAmParticipant && tournamentStatus === "running" && match.status === "ready";
+            return `
+              <div class="bracket-match ${match.status}">
+                <div><strong>${escapeHtml(match.player_a_name || "Freilos/offen")}</strong> vs. <strong>${escapeHtml(match.player_b_name || "Freilos/offen")}</strong></div>
+                <div class="muted small">Status: ${escapeHtml(match.status)}${match.winner_name ? ` · Sieger: ${escapeHtml(match.winner_name)}` : ""}</div>
+                <div class="btn-row">
+                  ${match.live_match_id && ["active", "completed"].includes(match.status) ? `<button class="btn" data-action="open-live" data-live-match-id="${match.live_match_id}">Zum Match</button>` : ""}
+                  ${canStart ? `<button class="btn primary" data-action="start-tournament-match" data-tournament-match-id="${match.id}">Turniermatch starten</button>` : ""}
+                </div>
+              </div>`;
+          }).join("")}
+        </div>`).join("")}
+    </div>`;
+}
+
 function renderRecentMatches(matches) {
   if (!matches.length) return `<p class="muted small">Noch keine Matches gespeichert.</p>`;
   return `
     <ul class="log-list small">
       ${matches.map(match => `
         <li class="log-item">
-          <strong>${escapeHtml(match.winner_name)} gewinnt</strong> <span class="pill">${match.match_type === "quick" ? "Kurzspiel" : "Rangliste"}</span><br>
+          <strong>${escapeHtml(match.winner_name)} gewinnt</strong> <span class="pill">${matchTypeLabel(match.match_type)}</span><br>
           ${escapeHtml(match.player_a_name)} ${match.score_a}:${match.score_b} ${escapeHtml(match.player_b_name)}<br>
           <span class="muted">${formatDate(match.completed_at)}</span>
         </li>`).join("")}
@@ -734,8 +984,8 @@ function renderLiveMatch() {
       <div class="card">
         <div class="card-title-row">
           <div>
-            <h2>${match.match_type === "quick" ? "Kurzspiel" : "Ranglistenspiel"}</h2>
-            <p class="muted">Du spielst gegen <strong>${escapeHtml(opponent?.display_name || "?")}</strong>. ${match.match_type === "quick" ? "Dieses Spiel ändert keine Rangliste und keine Statistik." : "Dieses Spiel zählt für die Rangliste."} Erster Spieler mit ${WIN_POINTS} Punkten gewinnt.</p>
+            <h2>${match.match_type === "quick" ? "Kurzspiel" : match.match_type === "tournament" ? "Turniermatch" : "Ranglistenspiel"}</h2>
+            <p class="muted">Du spielst gegen <strong>${escapeHtml(opponent?.display_name || "?")}</strong>. ${match.match_type === "quick" ? "Dieses Spiel ändert keine Rangliste und keine Statistik." : match.match_type === "tournament" ? "Dieses Spiel zählt nur für das Turnier." : "Dieses Spiel zählt für die Rangliste."} Erster Spieler mit ${WIN_POINTS} Punkten gewinnt.</p>
           </div>
           <div class="btn-row">
             <button class="btn ghost" data-action="refresh-live">Aktualisieren</button>
@@ -767,7 +1017,7 @@ function renderLiveScoreboard(match) {
         <div class="score-number">${match.score_a}</div>
       </div>
       <div class="score-middle">
-        <span class="pill">${match.match_type === "quick" ? "Kurzspiel" : "Rangliste"}</span>
+        <span class="pill">${matchTypeLabel(match.match_type)}</span>
         <span class="small">${escapeHtml(phaseLabel(match.phase))} · Sieg bei ${WIN_POINTS} Punkten</span>
       </div>
       <div class="score-player ${match.waiting_for_player_id === match.player_b.id ? "active" : ""}">
@@ -783,7 +1033,7 @@ function renderLivePhase(match, currentId, waitingPlayer) {
     return `
       <div class="choice-card">
         <p class="point-text">Match beendet: ${escapeHtml(winner?.display_name || "?")} gewinnt ${match.score_a}:${match.score_b}.</p>
-        <p class="muted">${match.status === "forfeited" ? "Das Match wurde durch Timeout entschieden." : match.match_type === "quick" ? "Das Ergebnis wurde als Kurzspiel gespeichert. Die Rangliste bleibt unverändert." : "Das Ergebnis wurde gespeichert und die Rangliste aktualisiert."}</p>
+        <p class="muted">${match.status === "forfeited" ? "Das Match wurde durch Timeout entschieden." : match.match_type === "quick" ? "Das Ergebnis wurde als Kurzspiel gespeichert. Die Rangliste bleibt unverändert." : match.match_type === "tournament" ? "Das Ergebnis wurde für das Turnier gespeichert. Der Sieger rückt weiter." : "Das Ergebnis wurde gespeichert und die Rangliste aktualisiert."}</p>
         <button class="btn primary" data-action="back-lobby">Zur Rangliste</button>
       </div>`;
   }
@@ -1001,6 +1251,20 @@ app.addEventListener("submit", event => {
       showToast(session.player?.is_approved ? "Spieler erstellt und angemeldet." : "Registrierung gespeichert. Warte auf Admin-Freigabe.");
     });
   }
+
+  if (form.id === "tournamentForm") {
+    safeAction(async () => {
+      await state.store.createTournament({
+        name: document.getElementById("tournamentName").value,
+        startsAt: localInputToIso(document.getElementById("tournamentStart").value),
+        registrationDeadline: localInputToIso(document.getElementById("tournamentDeadline").value),
+        maxPlayers: Number(document.getElementById("tournamentMaxPlayers").value)
+      });
+      await refreshLobby(false);
+      render();
+      showToast("Turnier erstellt.");
+    });
+  }
 });
 
 app.addEventListener("click", event => {
@@ -1011,10 +1275,17 @@ app.addEventListener("click", event => {
   const playerId = button.dataset.playerId;
   const challengeId = button.dataset.challengeId;
   const liveMatchId = button.dataset.liveMatchId;
+  const tournamentId = button.dataset.tournamentId;
+  const tournamentMatchId = button.dataset.tournamentMatchId;
 
   safeAction(async () => {
     if (action === "refresh" || action === "refresh-public") {
       await refreshLobby(true);
+      render();
+    }
+
+    if (action === "set-page") {
+      state.lobbyPage = button.dataset.page || "home";
       render();
     }
 
@@ -1077,6 +1348,41 @@ app.addEventListener("click", event => {
 
     if (action === "open-live") {
       await openLiveMatch(liveMatchId);
+    }
+
+    if (action === "join-tournament") {
+      await state.store.joinTournament(tournamentId);
+      await refreshLobby(false);
+      render();
+      showToast("Für das Turnier angemeldet.");
+    }
+
+    if (action === "leave-tournament") {
+      await state.store.leaveTournament(tournamentId);
+      await refreshLobby(false);
+      render();
+      showToast("Vom Turnier abgemeldet.");
+    }
+
+    if (action === "generate-tournament") {
+      await state.store.generateTournamentBracket(tournamentId);
+      await refreshLobby(false);
+      render();
+      showToast("Tableau generiert.");
+    }
+
+    if (action === "cancel-tournament") {
+      await state.store.cancelTournament(tournamentId);
+      await refreshLobby(false);
+      render();
+      showToast("Turnier abgesagt.");
+    }
+
+    if (action === "start-tournament-match") {
+      state.liveMatch = await state.store.startTournamentMatch(tournamentMatchId);
+      state.view = "live";
+      render();
+      showToast("Turniermatch gestartet.");
     }
 
     if (action === "refresh-live") {
