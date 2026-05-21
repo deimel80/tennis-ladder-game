@@ -1,5 +1,5 @@
-const VERSION = "0.2.0";
-const STORAGE_SESSION_KEY = "tennis_ladder_session_v020";
+const VERSION = "0.2.1";
+const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
 
@@ -70,11 +70,13 @@ function normalizePlayer(raw) {
   return {
     id: raw.id,
     display_name: raw.display_name || raw.name,
-    rank_position: Number(raw.rank_position || raw.rank || 0),
+    rank_position: raw.rank_position == null ? null : Number(raw.rank_position || raw.rank || 0),
     wins: Number(raw.wins || 0),
     losses: Number(raw.losses || 0),
     points_for: Number(raw.points_for || 0),
-    points_against: Number(raw.points_against || 0)
+    points_against: Number(raw.points_against || 0),
+    is_approved: Boolean(raw.is_approved),
+    is_admin: Boolean(raw.is_admin)
   };
 }
 
@@ -188,6 +190,24 @@ class RemoteStore {
     return data;
   }
 
+  async approvePlayer(playerId) {
+    const { data, error } = await this.client.rpc("approve_player", {
+      p_session_token: state.session?.token,
+      p_player_id: playerId
+    });
+    if (error) throw error;
+    return normalizePlayer(data);
+  }
+
+  async rejectPlayer(playerId) {
+    const { data, error } = await this.client.rpc("reject_player", {
+      p_session_token: state.session?.token,
+      p_player_id: playerId
+    });
+    if (error) throw error;
+    return data;
+  }
+
   async startLiveMatch({ opponentId = null, challengeId = null }) {
     const { data, error } = await this.client.rpc("start_live_match", {
       p_session_token: state.session?.token,
@@ -247,6 +267,8 @@ class RemoteStore {
     const payload = typeof data === "string" ? JSON.parse(data) : data;
     return {
       players: (payload.players || []).map(normalizePlayer),
+      current_player: normalizePlayer(payload.current_player),
+      pending_players: (payload.pending_players || []).map(normalizePlayer),
       challenges: payload.challenges || [],
       recent_matches: payload.recent_matches || [],
       live_matches: payload.live_matches || []
@@ -394,7 +416,7 @@ function renderSetup() {
           <div class="card-title-row">
             <div>
               <h2>Rangliste</h2>
-              <p class="muted">Öffentlich sichtbar. Zum Fordern oder Live-Spielen bitte anmelden.</p>
+              <p class="muted">Öffentlich sichtbar. Zum Fordern bitte anmelden und vom Admin freigeschaltet sein.</p>
             </div>
             <button class="btn ghost" data-action="refresh-public">Aktualisieren</button>
           </div>
@@ -408,7 +430,7 @@ function renderSetup() {
               <p class="muted">Melde dich mit Spielername und 4-stelliger PIN an.</p>
             </div>
           </div>
-          <div class="success small">Supabase ist aktiv. Live-Matches, Forderungen und Rangliste werden zentral gespeichert.</div>
+          <div class="success small">Supabase ist aktiv. Neue Spieler müssen nach der Registrierung vom Admin freigegeben werden.</div>
           <div class="setup-columns" style="margin-top: 16px;">
             <form id="loginForm" class="card compact form-grid">
               <h3>Login</h3>
@@ -417,10 +439,10 @@ function renderSetup() {
               <button class="btn primary" type="submit">Einloggen</button>
             </form>
             <form id="registerForm" class="card compact form-grid">
-              <h3>Neuen Spieler anlegen</h3>
+              <h3>Freigabe anfragen</h3>
               <label class="field"><span>Spielername</span><input id="registerName" autocomplete="username" placeholder="Name" required /></label>
               <label class="field"><span>4-stellige PIN</span><input id="registerPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="0000" required /></label>
-              <button class="btn" type="submit">Spieler erstellen</button>
+              <button class="btn" type="submit">Registrieren und Freigabe anfragen</button>
             </form>
           </div>
         </div>
@@ -445,10 +467,54 @@ function renderSetup() {
 function renderLobby() {
   const currentId = state.session?.player?.id;
   const players = state.lobby?.players || [];
-  const current = players.find(p => p.id === currentId) || state.session?.player;
+  const current = state.lobby?.current_player || players.find(p => p.id === currentId) || state.session?.player;
   const challenges = state.lobby?.challenges || [];
   const recentMatches = state.lobby?.recent_matches || [];
   const liveMatches = state.lobby?.live_matches || [];
+  const pendingPlayers = state.lobby?.pending_players || [];
+  const isApproved = Boolean(current?.is_approved);
+  const isAdmin = Boolean(current?.is_admin);
+
+  if (!isApproved) {
+    app.innerHTML = `
+      <section class="grid two">
+        <div class="grid">
+          <div class="card">
+            <div class="card-title-row">
+              <div>
+                <h2>Freigabe ausstehend</h2>
+                <p class="muted">Angemeldet als <strong>${escapeHtml(current?.display_name || "?")}</strong>. Dieses Konto ist noch nicht vom Admin freigegeben.</p>
+              </div>
+              <div class="btn-row">
+                <button class="btn ghost" data-action="refresh">Aktualisieren</button>
+                <button class="btn ghost" data-action="logout">Abmelden</button>
+              </div>
+            </div>
+            <div class="notice small">Du kannst die öffentliche Rangliste sehen, aber noch keine Forderungen erstellen oder Live-Spiele starten.</div>
+          </div>
+          <div class="card">
+            <div class="card-title-row">
+              <div>
+                <h2>Rangliste</h2>
+                <p class="muted">Nur freigegebene Spieler erscheinen in der Tabelle.</p>
+              </div>
+            </div>
+            ${renderRankingTable(players, null, { showActions: false })}
+          </div>
+        </div>
+        <aside class="grid">
+          <div class="card compact">
+            <h2>Status</h2>
+            <p class="muted small">Warte auf Admin-Freigabe. Nach der Freigabe bitte aktualisieren oder neu einloggen.</p>
+          </div>
+          <div class="card compact">
+            <h2>Letzte Matches</h2>
+            ${renderRecentMatches(recentMatches)}
+          </div>
+        </aside>
+      </section>`;
+    return;
+  }
 
   app.innerHTML = `
     <section class="grid two">
@@ -457,7 +523,7 @@ function renderLobby() {
           <div class="card-title-row">
             <div>
               <h2>Rangliste</h2>
-              <p class="muted">Angemeldet als <strong>${escapeHtml(current?.display_name || "?")}</strong>. Direkt live spielen oder eine Forderung erstellen.</p>
+              <p class="muted">Angemeldet als <strong>${escapeHtml(current?.display_name || "?")}</strong>${isAdmin ? ` <span class="pill">Admin</span>` : ""}. Forderungen sind ranglistenrelevant.</p>
             </div>
             <div class="btn-row">
               <button class="btn ghost" data-action="refresh">Aktualisieren</button>
@@ -466,6 +532,8 @@ function renderLobby() {
           </div>
           ${renderRankingTable(players, currentId)}
         </div>
+
+        ${isAdmin ? renderAdminPanel(pendingPlayers) : ""}
 
         <div class="card">
           <div class="card-title-row">
@@ -503,6 +571,7 @@ function renderLobby() {
             <li class="log-item"><strong>Gewinn:</strong> erster Spieler mit ${WIN_POINTS} Punkten.</li>
             <li class="log-item"><strong>Aufschlag:</strong> Münzwurf, dann 1–2–2 wie im Match-Tiebreak.</li>
             <li class="log-item"><strong>Warten:</strong> ${TURN_SECONDS / 60} Minuten je Eingabe, dann Timeout-Sieg möglich.</li>
+            <li class="log-item"><strong>Spieler:</strong> neue Registrierungen müssen vom Admin freigegeben werden.</li>
           </ul>
         </div>
         <div class="card compact">
@@ -513,13 +582,41 @@ function renderLobby() {
     </section>`;
 }
 
+function renderAdminPanel(pendingPlayers) {
+  return `
+    <div class="card">
+      <div class="card-title-row">
+        <div>
+          <h2>Admin: Spieler-Freigaben</h2>
+          <p class="muted">Neue Registrierungen erscheinen erst nach Freigabe in der Rangliste.</p>
+        </div>
+        <span class="pill">${pendingPlayers.length} offen</span>
+      </div>
+      ${!pendingPlayers.length ? `<p class="muted">Keine offenen Freigaben.</p>` : `
+        <ul class="challenge-list">
+          ${pendingPlayers.map(player => `
+            <li class="challenge-item">
+              <div class="challenge-title">
+                <span>${escapeHtml(player.display_name)}</span>
+                <span class="status open">wartet</span>
+              </div>
+              <p class="muted small">Noch nicht in der Rangliste. Freigabe hängt ihn hinten an.</p>
+              <div class="btn-row">
+                <button class="btn primary" data-action="approve-player" data-player-id="${player.id}">Freigeben</button>
+                <button class="btn danger" data-action="reject-player" data-player-id="${player.id}">Ablehnen/löschen</button>
+              </div>
+            </li>`).join("")}
+        </ul>`}
+    </div>`;
+}
+
 function renderRankingTable(players, currentId, options = {}) {
   const showActions = options.showActions !== false;
   const rows = players.map(player => {
     const isSelf = player.id === currentId;
     return `
       <tr>
-        <td><span class="rank">${player.rank_position}</span></td>
+        <td><span class="rank">${player.rank_position ?? "-"}</span></td>
         <td><strong>${escapeHtml(player.display_name)}</strong>${isSelf ? ` <span class="pill">du</span>` : ""}</td>
         <td>${player.wins}</td>
         <td>${player.losses}</td>
@@ -528,7 +625,6 @@ function renderRankingTable(players, currentId, options = {}) {
           ${!showActions ? `<span class="muted small">Login nötig</span>` : isSelf ? "" : `
             <div class="btn-row">
               <button class="btn primary" data-action="challenge" data-player-id="${player.id}">Fordern</button>
-              <button class="btn" data-action="start-direct-live" data-player-id="${player.id}">Live-Match</button>
             </div>`}
         </td>
       </tr>`;
@@ -887,7 +983,7 @@ app.addEventListener("submit", event => {
       await refreshLobby(false);
       state.view = "lobby";
       render();
-      showToast("Spieler erstellt und angemeldet.");
+      showToast(session.player?.is_approved ? "Spieler erstellt und angemeldet." : "Registrierung gespeichert. Warte auf Admin-Freigabe.");
     });
   }
 });
@@ -936,13 +1032,18 @@ app.addEventListener("click", event => {
       showToast("Forderung abgebrochen.");
     }
 
-    if (action === "start-direct-live") {
-      const opponent = findPlayer(playerId);
-      if (!opponent) throw new Error("Spieler nicht gefunden.");
-      state.liveMatch = await state.store.startLiveMatch({ opponentId: playerId });
-      state.view = "live";
+    if (action === "approve-player") {
+      await state.store.approvePlayer(playerId);
+      await refreshLobby(false);
       render();
-      showToast(`Live-Match gegen ${opponent.display_name} gestartet.`);
+      showToast("Spieler freigegeben.");
+    }
+
+    if (action === "reject-player") {
+      await state.store.rejectPlayer(playerId);
+      await refreshLobby(false);
+      render();
+      showToast("Registrierung abgelehnt und gelöscht.");
     }
 
     if (action === "start-challenge-live") {
