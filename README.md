@@ -1,34 +1,12 @@
-# Tennis Ladder Match-Tiebreak Arena v0.1.2
+# Tennis Ladder Live-Tiebreak v0.2.0
 
-Statisches Browser-Spiel für GitHub Pages mit zentraler Supabase-Speicherung.
+Diese Version nutzt weiterhin GitHub Pages als statisches Frontend und Supabase als zentrale Datenbank.
 
-## Wichtiges Update von v0.1.2
+## Wichtig vor dem Hochladen
 
-- Der lokale Demo-Modus wurde entfernt.
-- Es werden keine Fake-Spieler mehr erzeugt.
-- Rangliste, Forderungen und Matches laufen ausschließlich über Supabase.
-- Die ZIP enthält bewusst keine echte `config.js`, damit eine bereits konfigurierte Datei bei GitHub nicht überschrieben wird.
+Die ZIP enthält bewusst keine `config.js`, damit deine funktionierende Supabase-Konfiguration nicht überschrieben wird.
 
-## Dateien für GitHub Pages
-
-Diese Dateien ins Root-Verzeichnis deines GitHub-Repositories hochladen/ersetzen:
-
-```text
-index.html
-style.css
-app.js
-README.md
-```
-
-Diese Datei ist nur Vorlage:
-
-```text
-config.example.js
-```
-
-## config.js
-
-Im Repository muss zusätzlich eine echte `config.js` liegen:
+Auf GitHub muss deine vorhandene `config.js` erhalten bleiben:
 
 ```js
 window.TENNIS_CONFIG = {
@@ -37,31 +15,46 @@ window.TENNIS_CONFIG = {
 };
 ```
 
-Wenn du die alte funktionierende `config.js` noch in GitHub hast: nicht überschreiben.
+## Update von v0.1.2 auf v0.2.0
 
-Wenn du sie versehentlich überschrieben hast: Supabase öffnen → Projekt → Connect oder Project Settings → API Keys → Project URL und Publishable/Anon Key wieder in `config.js` eintragen.
+1. In Supabase den SQL Editor öffnen.
+2. Den kompletten Inhalt aus `database.sql` einfügen.
+3. `Run` ausführen.
+4. Danach auf GitHub diese Dateien ersetzen:
+   - `index.html`
+   - `style.css`
+   - `app.js`
+   - `README.md`
+5. `config.js` nicht ersetzen.
 
-## Supabase
+## Neue Funktionen in v0.2.0
 
-Bei einer bestehenden Installation musst du `database.sql` normalerweise nicht erneut ausführen.
+- Testmodus: erster Spieler mit 3 Punkten gewinnt.
+- Kein 2-Punkte-Abstand mehr nötig.
+- Live-Matches über zwei Geräte.
+- Aufschlag/Schlag wird verdeckt gespeichert.
+- Gegner sieht erst danach seine Reaktionsauswahl.
+- Automatisches Polling alle ca. 2,5 Sekunden.
+- 5-Minuten-Frist pro Eingabe.
+- Nach Ablauf kann der wartende Gegner einen Timeout-Sieg reklamieren.
+- Live-Spiel kann direkt aus der Rangliste gestartet werden.
+- Live-Spiel kann aus einer angenommenen Forderung gestartet werden.
 
-Bei einer Neuinstallation:
+## Ablauf Live-Spiel
 
-1. Supabase-Projekt erstellen.
-2. SQL Editor öffnen.
-3. Inhalt von `database.sql` komplett ausführen.
-4. `config.js` mit Project URL und Publishable/Anon Key erstellen.
-5. Dateien auf GitHub Pages hochladen.
+1. Spieler A startet ein Live-Match gegen Spieler B oder aus einer angenommenen Forderung.
+2. Die Datenbank wirft die Münze und bestimmt den ersten Aufschläger.
+3. Der Spieler, der dran ist, wählt verdeckt Aufschlag oder Schlag mit Risiko.
+4. Der andere Spieler bekommt erst danach seine Lese-/Return-Auswahl.
+5. Supabase berechnet den Punkt zentral.
+6. Bei 3 Punkten wird das Match automatisch gespeichert und die Rangliste aktualisiert.
 
-## Stand v0.1.2
+## Timeout-Regel
 
-- öffentliche Rangliste vor Login
-- Spielerregistrierung mit Name + 4-stelliger PIN
-- Login
-- Forderungen erstellen/annehmen/abbrechen
-- direktes Match starten
-- Match-Tiebreak bis 10 mit 2 Punkten Abstand
-- Aufschlagfolge 1–2–2–2
-- textbasierte Schlagwahl mit Risiko 0–150 %
-- Ergebnis zentral speichern
-- Rangliste nach Sieg gegen höherplatzierten Spieler aktualisieren
+Pro Eingabe läuft eine Frist von 5 Minuten.
+
+Wenn der Spieler, der dran ist, nicht rechtzeitig spielt, kann der andere Spieler auf **Timeout-Sieg reklamieren** klicken. Dann wird das Match als Sieg für den wartenden Spieler gespeichert.
+
+## Technischer Hinweis
+
+Das Live-Spiel nutzt bewusst Polling statt Supabase Realtime. Das ist für GitHub Pages einfacher, robuster und reicht für diese Spielform aus.
