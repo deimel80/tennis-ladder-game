@@ -2157,3 +2157,415 @@ tr:last-child td {
 /* v0.10.2 timeout and quick cancel */
 .match-hero-actions .btn-row { justify-content: flex-end; }
 @media (max-width: 640px) { .match-hero-actions .btn-row { width: 100%; display: grid; grid-template-columns: 1fr; } }
+
+
+/* v0.10.3 clearer mobile action flow */
+.improved-mobile-stage {
+  gap: 14px;
+}
+
+.action-step-card {
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 22px;
+  background: rgba(255,255,255,0.035);
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.highlight-step-card {
+  border-color: rgba(111,255,211,0.22);
+  box-shadow: inset 0 0 0 1px rgba(111,255,211,0.08);
+}
+
+.action-step-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.action-step-head strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.action-step-head small {
+  color: var(--muted);
+  display: block;
+  margin-top: 2px;
+}
+
+.step-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  background: linear-gradient(135deg, rgba(182,255,111,0.24), rgba(111,255,211,0.16));
+  border: 1px solid rgba(182,255,111,0.38);
+  color: #f5ffe8;
+  font-weight: 900;
+}
+
+.simple-shot-option {
+  position: relative;
+}
+
+.simple-shot-option::after {
+  content: "Tippen";
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: rgba(223,255,188,0.86);
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity .15s ease, transform .15s ease;
+}
+
+.simple-shot-option.active::after {
+  content: "Gewählt";
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.simple-shot-option.active {
+  border-color: rgba(182,255,111,0.70);
+  background: linear-gradient(135deg, rgba(182,255,111,0.28), rgba(111,255,211,0.16));
+  box-shadow: inset 0 0 0 1px rgba(182,255,111,0.18), 0 10px 22px rgba(0,0,0,0.18);
+}
+
+.simple-shot-option.active .shot-card-label,
+.simple-shot-option.active small {
+  color: #f4ffe7;
+}
+
+.net-tactic-panel,
+.risk-field-pro {
+  gap: 12px;
+}
+
+.risk-preset-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.risk-chip {
+  min-height: 46px;
+  padding: 10px 12px;
+  font-size: 0.88rem;
+}
+
+.action-confirm-card {
+  border-color: rgba(182,255,111,0.30);
+  background: linear-gradient(180deg, rgba(182,255,111,0.06), rgba(255,255,255,0.03));
+}
+
+.emphasized-action-row {
+  width: 100%;
+}
+
+.action-confirm-btn {
+  width: 100%;
+  min-height: 58px;
+  font-size: 1.05rem;
+  font-weight: 900;
+  box-shadow: 0 16px 34px rgba(84, 170, 90, 0.18);
+}
+
+@media (max-width: 760px) {
+  .match-stage h2 {
+    font-size: 1.45rem;
+  }
+
+  .action-step-card {
+    padding: 14px;
+    border-radius: 20px;
+    gap: 10px;
+  }
+
+  .action-step-head {
+    align-items: flex-start;
+  }
+
+  .simple-shot-grid {
+    gap: 10px;
+  }
+
+  .simple-shot-option {
+    min-height: 92px;
+  }
+
+  .simple-shot-option::after {
+    opacity: .5;
+    transform: translateY(0);
+  }
+
+  .risk-preset-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .risk-chip {
+    min-height: 48px;
+    font-size: 0.9rem;
+  }
+
+  .stage-action-row {
+    position: sticky;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+    padding-top: 2px;
+    background: linear-gradient(180deg, rgba(8,17,16,0), rgba(8,17,16,0.92) 35%);
+  }
+
+  .action-confirm-btn {
+    min-height: 60px;
+    border-radius: 18px;
+  }
+}
+
+
+/* v0.11.0 cleaner mobile match flow + point flash */
+.compact-match-flow {
+  grid-template-columns: 1fr;
+}
+
+.match-focus-priority {
+  border-color: rgba(111,255,211,0.16);
+  box-shadow: 0 16px 38px rgba(0,0,0,0.18);
+}
+
+.match-details-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.match-collapsible-panel {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 22px;
+  background: rgba(8, 17, 16, 0.74);
+  overflow: hidden;
+}
+
+.match-collapsible-panel summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  font-weight: 850;
+}
+
+.match-collapsible-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.match-collapsible-panel summary::after {
+  content: "+";
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.match-collapsible-panel[open] summary::after {
+  content: "–";
+}
+
+.match-collapsible-body {
+  padding: 0 18px 18px;
+}
+
+.point-result-stage {
+  gap: 14px;
+}
+
+.point-flash-card {
+  border: 1px solid rgba(182,255,111,0.28);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(182,255,111,0.16), transparent 38%),
+    radial-gradient(circle at top right, rgba(111,255,211,0.14), transparent 34%),
+    rgba(255,255,255,0.04);
+  padding: 24px 20px;
+  text-align: center;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  box-shadow: inset 0 0 0 1px rgba(182,255,111,0.10), 0 16px 36px rgba(0,0,0,0.18);
+}
+
+.point-flash-ball {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  position: relative;
+  background: radial-gradient(circle at 30% 30%, #ecff8b 0%, #bdf14d 58%, #94ca2d 100%);
+  box-shadow: 0 10px 22px rgba(182,255,111,0.22);
+}
+
+.point-flash-ball::before,
+.point-flash-ball::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 3px solid rgba(255,255,255,0.85);
+  border-color: transparent transparent transparent rgba(255,255,255,0.85);
+  border-radius: 50%;
+}
+
+.point-flash-ball::after {
+  transform: scaleX(-1);
+}
+
+.point-flash-card h2 {
+  margin: 0;
+  font-size: clamp(1.8rem, 6vw, 3rem);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+
+.point-flash-subline {
+  margin: 0;
+  font-size: 1rem;
+  color: #f2ffe0;
+}
+
+.point-result-hint {
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .match-hero {
+    padding: 18px;
+    gap: 12px;
+  }
+
+  .match-hero h1 {
+    font-size: clamp(1.6rem, 8.5vw, 2.4rem);
+  }
+
+  .match-subline {
+    font-size: 0.9rem;
+  }
+
+  .match-details-stack {
+    gap: 10px;
+  }
+
+  .match-collapsible-panel {
+    border-radius: 18px;
+  }
+
+  .match-collapsible-panel summary {
+    padding: 14px 14px;
+    font-size: 0.95rem;
+  }
+
+  .match-collapsible-body {
+    padding: 0 14px 14px;
+  }
+
+  .point-flash-card {
+    padding: 20px 16px;
+    border-radius: 22px;
+  }
+
+  .point-flash-ball {
+    width: 54px;
+    height: 54px;
+  }
+
+  .point-flash-card h2 {
+    font-size: clamp(1.55rem, 8vw, 2.25rem);
+  }
+
+  .point-flash-subline {
+    font-size: 0.92rem;
+  }
+}
+
+
+/* v0.11.1 compact animated point flash */
+.point-flash-card {
+  animation: pointPop .34s ease-out both;
+}
+
+.point-flash-ball {
+  animation: ballPop .42s ease-out both;
+}
+
+.point-flash-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 82px;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(182,255,111,0.36);
+  background: rgba(182,255,111,0.12);
+  color: #eaffcf;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  font-size: 0.82rem;
+}
+
+.compact-point-result .point-flash-subline {
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+.compact-point-result .point-flash-card h2 {
+  max-width: 760px;
+}
+
+.point-flash-card.flash-ace .point-flash-badge,
+.point-flash-card.flash-winner .point-flash-badge {
+  background: rgba(182,255,111,0.20);
+  border-color: rgba(182,255,111,0.48);
+}
+
+.point-flash-card.flash-read .point-flash-badge {
+  background: rgba(111,255,211,0.18);
+  border-color: rgba(111,255,211,0.42);
+}
+
+.point-flash-card.flash-error .point-flash-badge {
+  background: rgba(255,122,122,0.14);
+  border-color: rgba(255,122,122,0.32);
+  color: #ffdede;
+}
+
+@keyframes pointPop {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ballPop {
+  0% { opacity: 0; transform: scale(0.55) rotate(-18deg); }
+  70% { opacity: 1; transform: scale(1.08) rotate(7deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@media (max-width: 760px) {
+  .point-flash-badge {
+    min-width: 72px;
+    min-height: 30px;
+    font-size: 0.76rem;
+  }
+
+  .compact-point-result .point-flash-subline {
+    font-size: 0.86rem;
+  }
+}

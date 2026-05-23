@@ -1,4 +1,4 @@
-const VERSION = "0.10.2";
+const VERSION = "0.11.1";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -1415,20 +1415,30 @@ function renderLiveMatch() {
 
         ${renderLiveScoreboard(match)}
 
-        <div class="match-main-grid">
-          <div class="match-focus-card">
+        <div class="match-main-grid compact-match-flow">
+          <div class="match-focus-card match-focus-priority">
             ${renderLivePhase(match, currentId, waitingPlayer)}
           </div>
-          <aside class="match-side-panel">
-            <div class="match-log-card">
-              <div class="card-title-row compact-title-row"><h3>Letzte Punkte</h3><span class="pill">${match.match_log?.length || 0}</span></div>
-              ${renderMatchLog(match.match_log)}
-            </div>
-            <div class="match-log-card">
-              <div class="card-title-row compact-title-row"><h3>Aktueller Punkt</h3><span class="pill">${match.point_log?.length || 0}</span></div>
-              ${renderPointLog(match.point_log)}
-            </div>
-          </aside>
+          <section class="match-details-stack">
+            <details class="match-collapsible-panel">
+              <summary>
+                <span>Letzte Punkte</span>
+                <span class="pill">${match.match_log?.length || 0}</span>
+              </summary>
+              <div class="match-collapsible-body">
+                ${renderMatchLog(match.match_log)}
+              </div>
+            </details>
+            <details class="match-collapsible-panel">
+              <summary>
+                <span>Aktueller Punkt</span>
+                <span class="pill">${match.point_log?.length || 0}</span>
+              </summary>
+              <div class="match-collapsible-body">
+                ${renderPointLog(match.point_log)}
+              </div>
+            </details>
+          </section>
         </div>
       </div>
     </section>`;
@@ -1461,6 +1471,26 @@ function renderLiveScoreboard(match) {
     </div>`;
 }
 
+function getPointFlash(text) {
+  const normalized = String(text || "").toLowerCase();
+  if (normalized.includes("ass") || normalized.includes("service-winner") || normalized.includes("aufschlag")) {
+    return { label: "ASS", shortText: "Starker Aufschlag", className: "flash-ace" };
+  }
+  if (normalized.includes("perfekt") || normalized.includes("gelesen") || normalized.includes("read")) {
+    return { label: "READ", shortText: "Perfekt gelesen", className: "flash-read" };
+  }
+  if (normalized.includes("winner") || normalized.includes("longline") || normalized.includes("passier")) {
+    return { label: "WINNER", shortText: "Direkter Punkt", className: "flash-winner" };
+  }
+  if (normalized.includes("stopp")) {
+    return { label: "STOPP", shortText: "Clever gelöst", className: "flash-touch" };
+  }
+  if (normalized.includes("fehler") || normalized.includes("aus") || normalized.includes("netz")) {
+    return { label: "FEHLER", shortText: "Fehler erzwungen", className: "flash-error" };
+  }
+  return { label: "PUNKT", shortText: "Ballwechsel gewonnen", className: "flash-point" };
+}
+
 function renderLivePhase(match, currentId, waitingPlayer) {
   if (match.status === "cancelled") {
     return `
@@ -1484,12 +1514,17 @@ function renderLivePhase(match, currentId, waitingPlayer) {
   }
 
   if (match.phase === "point_result") {
+    const pointWinner = getLivePlayer(match.last_point_winner_id);
+    const flash = getPointFlash(match.last_point_text || "");
     return `
-      <div class="match-stage result">
-        <div class="stage-kicker">Punkt entschieden</div>
-        <h2>${escapeHtml(match.last_point_text || "Punkt entschieden.")}</h2>
-        <p class="muted">Beide Spieler sehen jetzt das Ergebnis dieses Ballwechsels. Danach startet der nächste Punkt.</p>
-        <div class="btn-row"><button class="btn primary large" data-action="continue-live">Nächsten Punkt starten</button></div>
+      <div class="match-stage result point-result-stage compact-point-result">
+        <div class="point-flash-card ${flash.className}">
+          <div class="point-flash-ball" aria-hidden="true"></div>
+          <div class="point-flash-badge">${escapeHtml(flash.label)}</div>
+          <h2>PUNKT FÜR ${escapeHtml((pointWinner?.display_name || "Spieler").toUpperCase())}</h2>
+          <p class="point-flash-subline">${escapeHtml(flash.shortText)}</p>
+        </div>
+        <div class="btn-row"><button class="btn primary large action-confirm-btn" data-action="continue-live">Nächster Punkt</button></div>
       </div>`;
   }
 
@@ -1582,16 +1617,59 @@ function renderRallyRead(match) {
 }
 
 function renderChoiceStage({ kicker, title, description, inputId, choices, defaultChoiceId, riskId, riskDefault, buttonLabel, action, showNetTactic = false }) {
+  const riskStepNumber = showNetTactic ? 3 : 2;
+  const confirmStepNumber = showNetTactic ? 4 : 3;
   return `
-    <div class="match-stage action-stage">
+    <div class="match-stage action-stage improved-mobile-stage">
       <div class="stage-kicker">${kicker}</div>
       <h2>${title}</h2>
       <p class="muted">${description}</p>
-      ${renderChoiceButtons(inputId, choices, defaultChoiceId)}
-      ${showNetTactic ? renderNetTacticToggle() : ""}
-      ${renderRiskField(riskId, riskDefault)}
-      <div class="btn-row stage-action-row">
-        <button class="btn primary large" data-action="${action}">${buttonLabel}</button>
+
+      <div class="action-step-card highlight-step-card">
+        <div class="action-step-head">
+          <span class="step-badge">1</span>
+          <div>
+            <strong>Schlag wählen</strong>
+            <small>Tippe eine Option an</small>
+          </div>
+        </div>
+        ${renderChoiceButtons(inputId, choices, defaultChoiceId)}
+      </div>
+
+      ${showNetTactic ? `
+        <div class="action-step-card">
+          <div class="action-step-head">
+            <span class="step-badge">2</span>
+            <div>
+              <strong>Position wählen</strong>
+              <small>Bleib hinten oder rücke vor</small>
+            </div>
+          </div>
+          ${renderNetTacticToggle()}
+        </div>` : ""}
+
+      <div class="action-step-card">
+        <div class="action-step-head">
+          <span class="step-badge">${riskStepNumber}</span>
+          <div>
+            <strong>Risiko festlegen</strong>
+            <small>Schnellwahl oder Regler benutzen</small>
+          </div>
+        </div>
+        ${renderRiskField(riskId, riskDefault)}
+      </div>
+
+      <div class="action-step-card action-confirm-card">
+        <div class="action-step-head">
+          <span class="step-badge">${confirmStepNumber}</span>
+          <div>
+            <strong>Zug abschicken</strong>
+            <small>Danach ist der Gegner dran</small>
+          </div>
+        </div>
+        <div class="btn-row stage-action-row emphasized-action-row">
+          <button class="btn primary large action-confirm-btn" data-action="${action}">${buttonLabel}</button>
+        </div>
       </div>
     </div>`;
 }
