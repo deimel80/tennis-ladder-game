@@ -1,4 +1,4 @@
-const VERSION = "0.8.3";
+const VERSION = "0.9.0";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -1340,50 +1340,69 @@ function renderLiveMatch() {
   const currentId = state.session?.player?.id;
   const opponent = match.player_a.id === currentId ? match.player_b : match.player_a;
   const waitingPlayer = getLivePlayer(match.waiting_for_player_id);
+  const myTurn = match.waiting_for_player_id === currentId;
 
   app.innerHTML = `
-    <section class="grid">
-      <div class="card">
-        <div class="card-title-row">
+    <section class="match-mode">
+      <div class="match-shell">
+        <div class="match-hero">
           <div>
-            <h2>${match.match_type === "quick" ? "Kurzspiel" : match.match_type === "tournament" ? "Turniermatch" : "Ranglistenspiel"}</h2>
-            <p class="muted">Du spielst gegen <strong>${escapeHtml(opponent?.display_name || "?")}</strong>. ${match.match_type === "quick" ? "Dieses Spiel ändert keine Rangliste und keine Statistik." : match.match_type === "tournament" ? "Dieses Spiel zählt nur für das Turnier." : "Dieses Spiel zählt für die Rangliste."} Erster Spieler mit ${WIN_POINTS} Punkten gewinnt.</p>
+            <p class="eyebrow">${match.match_type === "quick" ? "Kurzspiel" : match.match_type === "tournament" ? "Turniermatch" : "Ranglistenspiel"}</p>
+            <h1>${escapeHtml(match.player_a.display_name)} <span>vs</span> ${escapeHtml(match.player_b.display_name)}</h1>
+            <p class="match-subline">${match.match_type === "quick" ? "Schnelles Match ohne Einfluss auf die Rangliste." : match.match_type === "tournament" ? "Dieses Match zählt nur für das Turnier." : "Dieses Match zählt für die Rangliste."} Erster Spieler mit ${WIN_POINTS} Punkten gewinnt.</p>
           </div>
-          <div class="btn-row">
-            <button class="btn ghost" data-action="refresh-live">Aktualisieren</button>
-            <button class="btn ghost" data-action="back-lobby">Zur Rangliste</button>
+          <div class="match-hero-actions">
+            <span class="match-chip ${myTurn ? "my-turn" : "waiting"}">${myTurn ? "Du bist dran" : `Warten auf ${escapeHtml(waitingPlayer?.display_name || "Gegner")}`}</span>
+            <div class="btn-row">
+              <button class="btn ghost" data-action="refresh-live">Aktualisieren</button>
+              <button class="btn ghost" data-action="back-lobby">Zurück</button>
+            </div>
           </div>
         </div>
+
         ${renderLiveScoreboard(match)}
-        <div class="phase-panel">${renderLivePhase(match, currentId, waitingPlayer)}</div>
-      </div>
-      <div class="grid two">
-        <div class="card compact">
-          <h2>Punkt-Protokoll</h2>
-          ${renderPointLog(match.point_log)}
-        </div>
-        <div class="card compact">
-          <h2>Match-Log</h2>
-          ${renderMatchLog(match.match_log)}
+
+        <div class="match-main-grid">
+          <div class="match-focus-card">
+            ${renderLivePhase(match, currentId, waitingPlayer)}
+          </div>
+          <aside class="match-side-panel">
+            <div class="match-log-card">
+              <div class="card-title-row compact-title-row"><h3>Letzte Punkte</h3><span class="pill">${match.match_log?.length || 0}</span></div>
+              ${renderMatchLog(match.match_log)}
+            </div>
+            <div class="match-log-card">
+              <div class="card-title-row compact-title-row"><h3>Aktueller Punkt</h3><span class="pill">${match.point_log?.length || 0}</span></div>
+              ${renderPointLog(match.point_log)}
+            </div>
+          </aside>
         </div>
       </div>
     </section>`;
   syncRangeLabels();
+  syncChoiceButtons();
 }
 
 function renderLiveScoreboard(match) {
   return `
-    <div class="scoreboard">
-      <div class="score-player ${match.waiting_for_player_id === match.player_a.id ? "active" : ""}">
-        <div class="score-name">${escapeHtml(match.player_a.display_name)}${match.point_server_id === match.player_a.id ? " · Aufschlag" : ""}</div>
+    <div class="match-scoreboard-pro">
+      <div class="match-scorecard ${match.waiting_for_player_id === match.player_a.id ? "active" : ""}">
+        <div class="match-score-topline">
+          <span class="score-name">${escapeHtml(match.player_a.display_name)}</span>
+          ${match.point_server_id === match.player_a.id ? `<span class="serve-badge">Aufschlag</span>` : ""}
+        </div>
         <div class="score-number">${match.score_a}</div>
       </div>
-      <div class="score-middle">
+      <div class="match-score-center">
         <span class="pill">${matchTypeLabel(match.match_type)}</span>
-        <span class="small">${escapeHtml(phaseLabel(match.phase))} · Sieg bei ${WIN_POINTS} Punkten</span>
+        <strong>${escapeHtml(phaseLabel(match.phase))}</strong>
+        <span class="small">Tie-Break bis ${WIN_POINTS}</span>
       </div>
-      <div class="score-player ${match.waiting_for_player_id === match.player_b.id ? "active" : ""}">
-        <div class="score-name">${escapeHtml(match.player_b.display_name)}${match.point_server_id === match.player_b.id ? " · Aufschlag" : ""}</div>
+      <div class="match-scorecard ${match.waiting_for_player_id === match.player_b.id ? "active" : ""}">
+        <div class="match-score-topline">
+          <span class="score-name">${escapeHtml(match.player_b.display_name)}</span>
+          ${match.point_server_id === match.player_b.id ? `<span class="serve-badge">Aufschlag</span>` : ""}
+        </div>
         <div class="score-number">${match.score_b}</div>
       </div>
     </div>`;
@@ -1393,19 +1412,21 @@ function renderLivePhase(match, currentId, waitingPlayer) {
   if (match.phase === "match_over" || match.status === "completed" || match.status === "forfeited") {
     const winner = getLivePlayer(match.last_point_winner_id) || (match.score_a > match.score_b ? match.player_a : match.player_b);
     return `
-      <div class="choice-card">
-        <p class="point-text">Match beendet: ${escapeHtml(winner?.display_name || "?")} gewinnt ${match.score_a}:${match.score_b}.</p>
-        <p class="muted">${match.status === "forfeited" ? "Das Match wurde durch Timeout entschieden." : match.match_type === "quick" ? "Das Ergebnis wurde als Kurzspiel gespeichert. Die Rangliste bleibt unverändert." : match.match_type === "tournament" ? "Das Ergebnis wurde für das Turnier gespeichert. Der Sieger rückt weiter." : "Das Ergebnis wurde gespeichert und die Rangliste aktualisiert."}</p>
-        <button class="btn primary" data-action="back-lobby">Zur Rangliste</button>
+      <div class="match-stage done">
+        <div class="stage-kicker">Match beendet</div>
+        <h2>${escapeHtml(winner?.display_name || "?")} gewinnt ${match.score_a}:${match.score_b}</h2>
+        <p class="muted">${match.status === "forfeited" ? "Das Match wurde durch Timeout entschieden." : match.match_type === "quick" ? "Kurzspiel gespeichert. Rangliste und Statistik bleiben unverändert." : match.match_type === "tournament" ? "Turnierergebnis gespeichert. Der Sieger rückt weiter." : "Ergebnis gespeichert und Rangliste aktualisiert."}</p>
+        <div class="btn-row"><button class="btn primary large" data-action="back-lobby">Zurück zur App</button></div>
       </div>`;
   }
 
   if (match.phase === "point_result") {
     return `
-      <div class="choice-card">
-        <p class="point-text">${escapeHtml(match.last_point_text || "Punkt entschieden.")}</p>
-        <p class="muted">Jeder beteiligte Spieler kann den nächsten Punkt starten.</p>
-        <button class="btn primary" data-action="continue-live">Nächster Punkt</button>
+      <div class="match-stage result">
+        <div class="stage-kicker">Punkt entschieden</div>
+        <h2>${escapeHtml(match.last_point_text || "Punkt entschieden.")}</h2>
+        <p class="muted">Beide Spieler sehen jetzt das Ergebnis dieses Ballwechsels. Danach startet der nächste Punkt.</p>
+        <div class="btn-row"><button class="btn primary large" data-action="continue-live">Nächsten Punkt starten</button></div>
       </div>`;
   }
 
@@ -1413,12 +1434,12 @@ function renderLivePhase(match, currentId, waitingPlayer) {
   if (!isMyTurn) {
     const remaining = secondsRemaining(match.action_deadline);
     return `
-      <div class="choice-card">
-        <h3>Warten auf ${escapeHtml(waitingPlayer?.display_name || "Gegner")}</h3>
-        <p class="muted">Sobald der andere Spieler seine Eingabe gemacht hat, aktualisiert sich das Spiel automatisch.</p>
-        <p><span class="pill ${remaining <= 0 ? "danger" : ""}">Restzeit: <strong id="deadlineCountdown">${formatSeconds(remaining)}</strong></span></p>
-        <div class="btn-row">
-          <button class="btn ghost" data-action="refresh-live">Aktualisieren</button>
+      <div class="match-stage waiting-stage">
+        <div class="stage-kicker">Bitte warten</div>
+        <h2>${escapeHtml(waitingPlayer?.display_name || "Gegner")} ist am Zug</h2>
+        <p class="muted">Sobald die Eingabe gespeichert wurde, kannst du hier direkt weiterspielen.</p>
+        <div class="waiting-meta-row">
+          <span class="match-chip ${remaining <= 0 ? "danger" : "waiting"}">Restzeit: <strong id="deadlineCountdown">${formatSeconds(remaining)}</strong></span>
           ${match.can_claim_timeout ? `<button class="btn danger" data-action="claim-timeout">Timeout-Sieg reklamieren</button>` : ""}
         </div>
       </div>`;
@@ -1432,63 +1453,121 @@ function renderLivePhase(match, currentId, waitingPlayer) {
 }
 
 function renderServeAttack(match) {
-  const title = match.is_second_serve ? "Zweiter Aufschlag" : "Erster Aufschlag";
-  return `
-    <div class="choice-card form-grid">
-      <h3>${escapeHtml(getLivePlayer(match.waiting_for_player_id)?.display_name || "Du")} · ${title}</h3>
-      <p class="muted small">Deine Auswahl wird verdeckt gespeichert. Der Gegner sieht erst nach seiner Return-Einstellung, was du gespielt hast.</p>
-      <label class="field"><span>Aufschlag wählen</span><select id="serveType">${SERVES.map(s => `<option value="${s.id}">${escapeHtml(s.label)}</option>`).join("")}</select></label>
-      ${renderRiskField("serveRisk", 92)}
-      <button class="btn primary" data-action="submit-serve">Aufschlag verdeckt wählen</button>
-    </div>`;
+  return renderChoiceStage({
+    kicker: match.is_second_serve ? "Zweiter Aufschlag" : "Erster Aufschlag",
+    title: `${escapeHtml(getLivePlayer(match.waiting_for_player_id)?.display_name || "Du")} serviert`,
+    description: "Wähle deinen Aufschlag. Der Gegner sieht deine Auswahl erst, nachdem er seinen Return gelesen hat.",
+    inputId: "serveType",
+    choices: SERVES,
+    defaultChoiceId: SERVES[0]?.id,
+    riskId: "serveRisk",
+    riskDefault: 92,
+    buttonLabel: "Aufschlag bestätigen",
+    action: "submit-serve"
+  });
 }
 
 function renderServeRead(match) {
-  return `
-    <div class="choice-card form-grid">
-      <h3>Return einstellen</h3>
-      <p class="muted small">Der Aufschlag wurde verdeckt gewählt. Je genauer du ihn liest, desto besser werden Return und Konterchance.</p>
-      <label class="field"><span>Worauf stellst du dich ein?</span><select id="returnRead">${SERVES.map(s => `<option value="${s.id}">${escapeHtml(s.label)}</option>`).join("")}</select></label>
-      ${renderRiskField("returnRisk", 82)}
-      <button class="btn primary" data-action="submit-return-read">Return spielen</button>
-    </div>`;
+  return renderChoiceStage({
+    kicker: "Return",
+    title: "Welchen Aufschlag erwartest du?",
+    description: "Je genauer du den Aufschlag liest, desto stärker fällt dein Return aus.",
+    inputId: "returnRead",
+    choices: SERVES,
+    defaultChoiceId: SERVES[0]?.id,
+    riskId: "returnRisk",
+    riskDefault: 82,
+    buttonLabel: "Return spielen",
+    action: "submit-return-read"
+  });
 }
 
 function renderRallyAttack(match) {
   const activeSide = sideOf(match, match.active_player_id);
   const shots = availableShotsForLive(match, activeSide);
-  return `
-    <div class="choice-card form-grid">
-      <h3>${escapeHtml(getLivePlayer(match.active_player_id)?.display_name || "Du")} · Schlag ${match.rally_count + 1}</h3>
-      <p class="muted small">Position: ${match.positions?.[activeSide] === "net" ? "am Netz" : "Grundlinie"}. Die Auswahl bleibt verdeckt, bis der Gegner gelesen hat.</p>
-      <label class="field"><span>Schlag wählen</span><select id="rallyShot">${shots.map(s => `<option value="${s.id}">${escapeHtml(s.label)}</option>`).join("")}</select></label>
-      ${renderRiskField("shotRisk", 88)}
-      <button class="btn primary" data-action="submit-rally-shot">Schlag verdeckt wählen</button>
-    </div>`;
+  const position = match.positions?.[activeSide] === "net" ? "am Netz" : "an der Grundlinie";
+  return renderChoiceStage({
+    kicker: `Ballwechsel · Schlag ${match.rally_count + 1}`,
+    title: `${escapeHtml(getLivePlayer(match.active_player_id)?.display_name || "Du")} greift ${position} an`,
+    description: "Wähle deinen Schlag. Der Gegner muss erraten, was du vorhast.",
+    inputId: "rallyShot",
+    choices: shots,
+    defaultChoiceId: shots[0]?.id,
+    riskId: "shotRisk",
+    riskDefault: 88,
+    buttonLabel: "Schlag spielen",
+    action: "submit-rally-shot"
+  });
 }
 
 function renderRallyRead(match) {
   const activeSide = sideOf(match, match.active_player_id);
   const shots = availableShotsForLive(match, activeSide);
+  return renderChoiceStage({
+    kicker: "Lesen & Reagieren",
+    title: "Welchen Schlag erwartest du?",
+    description: "Stell dich auf den wahrscheinlichsten Schlag ein. Ein guter Read bringt dir den Vorteil im Ballwechsel.",
+    inputId: "rallyRead",
+    choices: shots,
+    defaultChoiceId: shots[0]?.id,
+    riskId: "defenseRisk",
+    riskDefault: 78,
+    buttonLabel: "Reaktion bestätigen",
+    action: "submit-rally-read"
+  });
+}
+
+function renderChoiceStage({ kicker, title, description, inputId, choices, defaultChoiceId, riskId, riskDefault, buttonLabel, action }) {
   return `
-    <div class="choice-card form-grid">
-      <h3>Gegnerschlag lesen</h3>
-      <p class="muted small">Der Gegner hat einen Schlag verdeckt gewählt. Du stellst dich auf eine Variante ein.</p>
-      <label class="field"><span>Erwarteter Schlag</span><select id="rallyRead">${shots.map(s => `<option value="${s.id}">${escapeHtml(s.label)}</option>`).join("")}</select></label>
-      ${renderRiskField("defenseRisk", 78)}
-      <button class="btn primary" data-action="submit-rally-read">Reagieren</button>
+    <div class="match-stage action-stage">
+      <div class="stage-kicker">${kicker}</div>
+      <h2>${title}</h2>
+      <p class="muted">${description}</p>
+      ${renderChoiceButtons(inputId, choices, defaultChoiceId)}
+      ${renderRiskField(riskId, riskDefault)}
+      <div class="btn-row stage-action-row">
+        <button class="btn primary large" data-action="${action}">${buttonLabel}</button>
+      </div>
+    </div>`;
+}
+
+function renderChoiceButtons(inputId, choices, defaultChoiceId) {
+  const normalized = (choices || []).map(choice => ({ id: choice.id, label: choice.label }));
+  const defaultId = defaultChoiceId || normalized[0]?.id || "";
+  return `
+    <input type="hidden" id="${inputId}" value="${defaultId}" />
+    <div class="shot-grid" data-choice-group="${inputId}">
+      ${normalized.map(choice => `
+        <button type="button" class="shot-option ${choice.id === defaultId ? "active" : ""}" data-choice-target="${inputId}" data-choice-value="${choice.id}">
+          <span>${escapeHtml(choice.label)}</span>
+        </button>`).join("")}
     </div>`;
 }
 
 function renderRiskField(id, value) {
   return `
-    <label class="field">
+    <label class="field risk-field-pro">
       <span>Risiko</span>
-      <div class="range-row">
+      <div class="risk-preset-row">
+        <button type="button" class="risk-chip" data-risk-target="${id}" data-risk-value="70">Sicher</button>
+        <button type="button" class="risk-chip" data-risk-target="${id}" data-risk-value="90">Normal</button>
+        <button type="button" class="risk-chip" data-risk-target="${id}" data-risk-value="110">Mutig</button>
+        <button type="button" class="risk-chip" data-risk-target="${id}" data-risk-value="130">All-In</button>
+      </div>
+      <div class="range-row pro-range-row">
         <input id="${id}" type="range" min="0" max="150" value="${value}" data-range-label="${id}Value" />
         <strong id="${id}Value" class="risk-value">${value}%</strong>
       </div>
     </label>`;
+}
+
+function syncChoiceButtons() {
+  document.querySelectorAll('[data-choice-target]').forEach(button => {
+    const target = button.dataset.choiceTarget;
+    const input = document.getElementById(target);
+    if (!input) return;
+    button.classList.toggle('active', button.dataset.choiceValue === input.value);
+  });
 }
 
 function renderPointLog(log) {
@@ -1651,6 +1730,24 @@ app.addEventListener("click", event => {
   const liveMatchId = button.dataset.liveMatchId;
   const tournamentId = button.dataset.tournamentId;
   const tournamentMatchId = button.dataset.tournamentMatchId;
+
+  if (button.dataset.choiceTarget) {
+    const input = document.getElementById(button.dataset.choiceTarget);
+    if (input) {
+      input.value = button.dataset.choiceValue || "";
+      syncChoiceButtons();
+    }
+    return;
+  }
+
+  if (button.dataset.riskTarget) {
+    const input = document.getElementById(button.dataset.riskTarget);
+    if (input) {
+      input.value = button.dataset.riskValue || input.value;
+      syncRangeLabels();
+    }
+    return;
+  }
 
   safeAction(async () => {
     if (action === "refresh" || action === "refresh-public") {
