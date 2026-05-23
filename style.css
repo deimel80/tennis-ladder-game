@@ -2152,3 +2152,8 @@ tr:last-child td {
     padding: 12px 14px;
   }
 }
+
+
+/* v0.10.2 timeout and quick cancel */
+.match-hero-actions .btn-row { justify-content: flex-end; }
+@media (max-width: 640px) { .match-hero-actions .btn-row { width: 100%; display: grid; grid-template-columns: 1fr; } }

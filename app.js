@@ -1,4 +1,4 @@
-const VERSION = "0.10.1";
+const VERSION = "0.10.2";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -415,6 +415,15 @@ class RemoteStore {
     return this.normalizeLiveMatch(data);
   }
 
+  async cancelQuickMatch(matchId) {
+    const { data, error } = await this.client.rpc("cancel_quick_match", {
+      p_session_token: state.session?.token,
+      p_live_match_id: matchId
+    });
+    if (error) throw error;
+    return this.normalizeLiveMatch(data);
+  }
+
   normalizeSession(data) {
     const payload = typeof data === "string" ? JSON.parse(data) : data;
     return {
@@ -492,6 +501,15 @@ function startPolling() {
     safeAction(async () => {
       if (state.view === "live" && state.liveMatch?.id) {
         const currentId = state.session?.player?.id;
+        const expiredForOpponent = state.liveMatch.status === "active"
+          && state.liveMatch.waiting_for_player_id !== currentId
+          && state.liveMatch.action_deadline
+          && secondsRemaining(state.liveMatch.action_deadline) <= 0;
+        if (expiredForOpponent) {
+          state.liveMatch = await state.store.claimLiveTimeout(state.liveMatch.id);
+          render();
+          return;
+        }
         const shouldPoll = state.liveMatch.waiting_for_player_id !== currentId || state.liveMatch.phase === "match_over";
         if (shouldPoll) {
           state.liveMatch = await state.store.getLiveMatch(state.liveMatch.id);
@@ -516,7 +534,14 @@ function startCountdownTicks() {
   state.tickTimer = window.setInterval(() => {
     const node = document.getElementById("deadlineCountdown");
     if (!node || !state.liveMatch?.action_deadline) return;
-    node.textContent = formatSeconds(secondsRemaining(state.liveMatch.action_deadline));
+    const remaining = secondsRemaining(state.liveMatch.action_deadline);
+    node.textContent = formatSeconds(remaining);
+    if (remaining <= 0 && state.liveMatch?.can_claim_timeout) {
+      safeAction(async () => {
+        state.liveMatch = await state.store.claimLiveTimeout(state.liveMatch.id);
+        render();
+      }, { silent: true });
+    }
   }, 1000);
 }
 
@@ -1382,6 +1407,7 @@ function renderLiveMatch() {
             <span class="match-chip ${myTurn ? "my-turn" : "waiting"}">${myTurn ? "Du bist dran" : `Warten auf ${escapeHtml(waitingPlayer?.display_name || "Gegner")}`}</span>
             <div class="btn-row">
               <button class="btn ghost" data-action="refresh-live">Aktualisieren</button>
+              ${match.match_type === "quick" && match.status === "active" ? `<button class="btn danger" data-action="cancel-quick-match">Kurzspiel abbrechen</button>` : ""}
               <button class="btn ghost" data-action="back-lobby">Zurück</button>
             </div>
           </div>
@@ -1436,13 +1462,23 @@ function renderLiveScoreboard(match) {
 }
 
 function renderLivePhase(match, currentId, waitingPlayer) {
+  if (match.status === "cancelled") {
+    return `
+      <div class="match-stage done">
+        <div class="stage-kicker">Kurzspiel abgebrochen</div>
+        <h2>Dieses Kurzspiel wurde beendet</h2>
+        <p class="muted">Es wurde kein Ergebnis gespeichert. Du kannst sofort ein neues Spiel starten.</p>
+        <div class="btn-row"><button class="btn primary large" data-action="back-lobby">Zurück zur App</button></div>
+      </div>`;
+  }
+
   if (match.phase === "match_over" || match.status === "completed" || match.status === "forfeited") {
     const winner = getLivePlayer(match.last_point_winner_id) || (match.score_a > match.score_b ? match.player_a : match.player_b);
     return `
       <div class="match-stage done">
         <div class="stage-kicker">Match beendet</div>
         <h2>${escapeHtml(winner?.display_name || "?")} gewinnt ${match.score_a}:${match.score_b}</h2>
-        <p class="muted">${match.status === "forfeited" ? "Das Match wurde durch Timeout entschieden." : match.match_type === "quick" ? "Kurzspiel gespeichert. Rangliste und Statistik bleiben unverändert." : match.match_type === "tournament" ? "Turnierergebnis gespeichert. Der Sieger rückt weiter." : "Ergebnis gespeichert und Rangliste aktualisiert."}</p>
+        <p class="muted">${match.status === "forfeited" ? "Das Match wurde automatisch durch Timeout entschieden." : match.match_type === "quick" ? "Kurzspiel gespeichert. Rangliste und Statistik bleiben unverändert." : match.match_type === "tournament" ? "Turnierergebnis gespeichert. Der Sieger rückt weiter." : "Ergebnis gespeichert und Rangliste aktualisiert."}</p>
         <div class="btn-row"><button class="btn primary large" data-action="back-lobby">Zurück zur App</button></div>
       </div>`;
   }
@@ -1464,10 +1500,9 @@ function renderLivePhase(match, currentId, waitingPlayer) {
       <div class="match-stage waiting-stage">
         <div class="stage-kicker">Bitte warten</div>
         <h2>${escapeHtml(waitingPlayer?.display_name || "Gegner")} ist am Zug</h2>
-        <p class="muted">Sobald die Eingabe gespeichert wurde, kannst du hier direkt weiterspielen.</p>
+        <p class="muted">Sobald die Eingabe gespeichert wurde, kannst du hier direkt weiterspielen. Nach Ablauf der Zeit wird das Match automatisch entschieden.</p>
         <div class="waiting-meta-row">
           <span class="match-chip ${remaining <= 0 ? "danger" : "waiting"}">Restzeit: <strong id="deadlineCountdown">${formatSeconds(remaining)}</strong></span>
-          ${match.can_claim_timeout ? `<button class="btn danger" data-action="claim-timeout">Timeout-Sieg reklamieren</button>` : ""}
         </div>
       </div>`;
   }
@@ -2030,6 +2065,12 @@ app.addEventListener("click", event => {
       state.liveMatch = await state.store.claimLiveTimeout(state.liveMatch.id);
       render();
       showToast("Timeout-Sieg wurde gespeichert.");
+    }
+
+    if (action === "cancel-quick-match") {
+      state.liveMatch = await state.store.cancelQuickMatch(state.liveMatch.id);
+      render();
+      showToast("Kurzspiel abgebrochen.");
     }
 
     if (action === "submit-serve") {
