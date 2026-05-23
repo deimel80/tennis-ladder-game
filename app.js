@@ -1,4 +1,4 @@
-const VERSION = "0.9.0";
+const VERSION = "0.9.3";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -1568,11 +1568,17 @@ function syncChoiceButtons() {
     if (!input) return;
     button.classList.toggle('active', button.dataset.choiceValue === input.value);
   });
+  document.querySelectorAll('[data-risk-target]').forEach(button => {
+    const target = button.dataset.riskTarget;
+    const input = document.getElementById(target);
+    if (!input) return;
+    button.classList.toggle('active', String(button.dataset.riskValue) === String(input.value));
+  });
 }
 
 function renderPointLog(log) {
   if (!log?.length) return `<p class="muted small">Noch keine Aktion in diesem Punkt.</p>`;
-  return `<ul class="log-list small">${log.map(item => `<li class="log-item">${escapeHtml(item)}</li>`).join("")}</ul>`;
+  return `<ul class="log-list small">${log.slice().reverse().map(item => `<li class="log-item">${escapeHtml(item)}</li>`).join("")}</ul>`;
 }
 
 function renderMatchLog(points) {
@@ -1721,7 +1727,7 @@ app.addEventListener("submit", event => {
 });
 
 app.addEventListener("click", event => {
-  const button = event.target.closest("[data-action]");
+  const button = event.target.closest("[data-action], [data-choice-target], [data-risk-target]");
   if (!button) return;
 
   const action = button.dataset.action;
@@ -1745,6 +1751,7 @@ app.addEventListener("click", event => {
     if (input) {
       input.value = button.dataset.riskValue || input.value;
       syncRangeLabels();
+      syncChoiceButtons();
     }
     return;
   }
