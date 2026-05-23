@@ -1,4 +1,4 @@
-const VERSION = "0.10.0";
+const VERSION = "0.10.1";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -21,10 +21,10 @@ const SERVE_READS = [
 const BASELINE_SHOTS = [
   { id: "topspin_cross", label: "Sicher cross", short: "Cross", hint: "Stabiler Ball, wenig Fehler.", tag: "Sicher" },
   { id: "topspin_line", label: "Longline Angriff", short: "Longline", hint: "Direkt Druck machen.", tag: "Angriff" },
-  { id: "slice_short", label: "Slice tief", short: "Slice", hint: "Tempo rausnehmen und tief halten.", tag: "Taktik" },
+  { id: "slice_short", label: "Slice tief", short: "Slice", hint: "Tempo rausnehmen und flach halten.", tag: "Taktik" },
   { id: "drop_shot", label: "Stoppball", short: "Stopp", hint: "Überraschung, wenn der Gegner tief steht.", tag: "Trick" },
-  { id: "lob", label: "Lob", short: "Lob", hint: "Zeit gewinnen oder Netzspieler überspielen.", tag: "Hoch" },
-  { id: "approach_net", label: "Ans Netz", short: "Netz", hint: "Nach vorne gehen und Punkt verkürzen.", tag: "Vor" }
+  { id: "lob", label: "Lob", short: "Lob", hint: "Zeit gewinnen oder Gegner überspielen.", tag: "Hoch" },
+  { id: "topspin_hard", label: "Hart auf Körper", short: "Körper", hint: "Blockiert die Reaktion des Gegners.", tag: "Druck" }
 ];
 
 const NET_SHOTS = [
@@ -38,6 +38,27 @@ const PASSING_SHOTS = [
   { id: "passing_line", label: "Passierball longline", short: "Line", hint: "Direkter Winner-Versuch.", tag: "Risiko" },
   { id: "lob", label: "Lob über Gegner", short: "Lob", hint: "Über den Netzspieler hinweg.", tag: "Hoch" },
   { id: "topspin_hard", label: "Auf die Füße", short: "Füße", hint: "Schwerer Volley für den Gegner.", tag: "Druck" }
+];
+
+const RALLY_READS = [
+  { id: "topspin_cross", label: "Sicher erwarten", short: "Sicher", hint: "Du rechnest mit einem stabilen Ball.", tag: "Read" },
+  { id: "topspin_line", label: "Angriff erwarten", short: "Angriff", hint: "Du deckst den Druckball ab.", tag: "Read" },
+  { id: "drop_shot", label: "Kurz erwarten", short: "Kurz", hint: "Du bist bereit für Stoppball oder kurzen Ball.", tag: "Read" },
+  { id: "lob", label: "Lob erwarten", short: "Lob", hint: "Du stellst dich auf einen hohen Ball ein.", tag: "Read" },
+  { id: "approach_net", label: "Netzangriff erwarten", short: "Netz", hint: "Du rechnest damit, dass der Gegner vorrückt.", tag: "Read" }
+];
+
+const NET_READS = [
+  { id: "volley", label: "Volley erwarten", short: "Volley", hint: "Du erwartest den direkten Netzball.", tag: "Read" },
+  { id: "stop_volley", label: "Stopp-Volley erwarten", short: "Stopp", hint: "Du bist bereit für den kurzen Ball.", tag: "Read" },
+  { id: "smash", label: "Smash erwarten", short: "Smash", hint: "Du rechnest mit dem Abschluss.", tag: "Read" }
+];
+
+const PASSING_READS = [
+  { id: "passing_cross", label: "Passierball cross", short: "Cross", hint: "Du deckst den Cross-Pass ab.", tag: "Read" },
+  { id: "passing_line", label: "Passierball longline", short: "Line", hint: "Du deckst den langen Pass ab.", tag: "Read" },
+  { id: "lob", label: "Lob erwarten", short: "Lob", hint: "Du sicherst den hohen Ball ab.", tag: "Read" },
+  { id: "topspin_hard", label: "Auf die Füße", short: "Füße", hint: "Du erwartest den tiefen Druckball.", tag: "Read" }
 ];
 
 const app = document.getElementById("app");
@@ -1492,30 +1513,32 @@ function renderRallyAttack(match) {
   const activeSide = sideOf(match, match.active_player_id);
   const shots = availableShotsForLive(match, activeSide);
   const position = match.positions?.[activeSide] === "net" ? "am Netz" : "an der Grundlinie";
+  const canApproach = canApproachNet(match, activeSide);
   return renderChoiceStage({
     kicker: `Ballwechsel · Schlag ${match.rally_count + 1}`,
-    title: `${escapeHtml(getLivePlayer(match.active_player_id)?.display_name || "Du")} greift ${position} an`,
-    description: "Wähle deinen Schlag. Der Gegner muss erraten, was du vorhast.",
+    title: `${escapeHtml(getLivePlayer(match.active_player_id)?.display_name || "Du")} spielt ${position}`,
+    description: canApproach ? "Wähle zuerst den Schlag. Danach entscheidest du, ob du hinten bleibst oder ans Netz vorrückst." : "Wähle deinen Schlag. Der Gegner muss deine taktische Idee lesen.",
     inputId: "rallyShot",
     choices: shots,
     defaultChoiceId: shots[0]?.id,
     riskId: "shotRisk",
     riskDefault: 88,
     buttonLabel: "Schlag spielen",
-    action: "submit-rally-shot"
+    action: "submit-rally-shot",
+    showNetTactic: canApproach
   });
 }
 
 function renderRallyRead(match) {
   const activeSide = sideOf(match, match.active_player_id);
-  const shots = availableShotsForLive(match, activeSide);
+  const reads = availableReadsForLive(match, activeSide);
   return renderChoiceStage({
     kicker: "Lesen & Reagieren",
-    title: "Welchen Schlag erwartest du?",
-    description: "Stell dich auf den wahrscheinlichsten Schlag ein. Ein guter Read bringt dir den Vorteil im Ballwechsel.",
+    title: "Was erwartest du?",
+    description: "Du musst nicht jeden Schlag exakt erraten. Lies die taktische Idee: sicher, Angriff, kurz, Lob oder Netzangriff.",
     inputId: "rallyRead",
-    choices: shots,
-    defaultChoiceId: shots[0]?.id,
+    choices: reads,
+    defaultChoiceId: reads[0]?.id,
     riskId: "defenseRisk",
     riskDefault: 78,
     buttonLabel: "Reaktion bestätigen",
@@ -1523,13 +1546,14 @@ function renderRallyRead(match) {
   });
 }
 
-function renderChoiceStage({ kicker, title, description, inputId, choices, defaultChoiceId, riskId, riskDefault, buttonLabel, action }) {
+function renderChoiceStage({ kicker, title, description, inputId, choices, defaultChoiceId, riskId, riskDefault, buttonLabel, action, showNetTactic = false }) {
   return `
     <div class="match-stage action-stage">
       <div class="stage-kicker">${kicker}</div>
       <h2>${title}</h2>
       <p class="muted">${description}</p>
       ${renderChoiceButtons(inputId, choices, defaultChoiceId)}
+      ${showNetTactic ? renderNetTacticToggle() : ""}
       ${renderRiskField(riskId, riskDefault)}
       <div class="btn-row stage-action-row">
         <button class="btn primary large" data-action="${action}">${buttonLabel}</button>
@@ -1558,6 +1582,24 @@ function renderChoiceButtons(inputId, choices, defaultChoiceId) {
           <span class="shot-card-label">${escapeHtml(choice.label)}</span>
           ${choice.hint ? `<small>${escapeHtml(choice.hint)}</small>` : ""}
         </button>`).join("")}
+    </div>`;
+}
+
+function renderNetTacticToggle() {
+  return `
+    <div class="net-tactic-panel">
+      <input type="hidden" id="netApproach" value="false" />
+      <div class="net-tactic-title">Position nach dem Schlag</div>
+      <div class="net-tactic-row">
+        <button type="button" class="tactic-option active" data-tactic-target="netApproach" data-tactic-value="false">
+          <strong>Grundlinie halten</strong>
+          <small>stabil bleiben</small>
+        </button>
+        <button type="button" class="tactic-option" data-tactic-target="netApproach" data-tactic-value="true">
+          <strong>Ans Netz vorrücken</strong>
+          <small>mehr Druck, mehr Risiko</small>
+        </button>
+      </div>
     </div>`;
 }
 
@@ -1592,6 +1634,14 @@ function syncChoiceButtons() {
     const input = document.getElementById(target);
     if (!input) return;
     button.classList.toggle('active', String(button.dataset.riskValue) === String(input.value));
+  });
+  document.querySelectorAll('[data-tactic-target]').forEach(button => {
+    const target = button.dataset.tacticTarget;
+    const input = document.getElementById(target);
+    if (!input) return;
+    const isActive = String(button.dataset.tacticValue) === String(input.value);
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
   });
 }
 
@@ -1651,6 +1701,18 @@ function availableShotsForLive(match, activeSide) {
   if (match.positions?.[activeSide] === "net") return NET_SHOTS;
   if (match.positions?.[defenderSide] === "net") return PASSING_SHOTS;
   return BASELINE_SHOTS;
+}
+
+function availableReadsForLive(match, activeSide) {
+  const defenderSide = otherSide(activeSide);
+  if (match.positions?.[activeSide] === "net") return NET_READS;
+  if (match.positions?.[defenderSide] === "net") return PASSING_READS;
+  return RALLY_READS;
+}
+
+function canApproachNet(match, activeSide) {
+  const defenderSide = otherSide(activeSide);
+  return match.positions?.[activeSide] !== "net" && match.positions?.[defenderSide] !== "net";
 }
 
 function findPlayer(playerId) {
@@ -1770,6 +1832,15 @@ app.addEventListener("click", event => {
     if (input) {
       input.value = button.dataset.riskValue || input.value;
       syncRangeLabels();
+      syncChoiceButtons();
+    }
+    return;
+  }
+
+  if (button.dataset.tacticTarget) {
+    const input = document.getElementById(button.dataset.tacticTarget);
+    if (input) {
+      input.value = button.dataset.tacticValue || "false";
       syncChoiceButtons();
     }
     return;
@@ -1984,9 +2055,11 @@ app.addEventListener("click", event => {
     if (action === "submit-rally-shot") {
       const activeSide = sideOf(state.liveMatch, state.liveMatch.active_player_id);
       const shot = findShot(document.getElementById("rallyShot").value, availableShotsForLive(state.liveMatch, activeSide));
+      const approachInput = document.getElementById("netApproach");
       state.liveMatch = await state.store.submitLiveChoice(state.liveMatch.id, {
         kind: "rally_shot",
         shot_id: shot.id,
+        approach_net: approachInput ? approachInput.value === "true" : false,
         risk: Number(document.getElementById("shotRisk").value)
       });
       render();
@@ -1994,10 +2067,11 @@ app.addEventListener("click", event => {
 
     if (action === "submit-rally-read") {
       const activeSide = sideOf(state.liveMatch, state.liveMatch.active_player_id);
-      const shot = findShot(document.getElementById("rallyRead").value, availableShotsForLive(state.liveMatch, activeSide));
+      const shot = findShot(document.getElementById("rallyRead").value, availableReadsForLive(state.liveMatch, activeSide));
       state.liveMatch = await state.store.submitLiveChoice(state.liveMatch.id, {
         kind: "rally_read",
         expected_shot_id: shot.id,
+        expected_net: shot.id === "approach_net",
         risk: Number(document.getElementById("defenseRisk").value)
       });
       render();

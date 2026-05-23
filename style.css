@@ -2094,3 +2094,61 @@ tr:last-child td {
     font-size: 0.82rem;
   }
 }
+
+/* v0.10.1 net tactic and simplified reads */
+.net-tactic-panel {
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 22px;
+  background: rgba(255,255,255,0.035);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.net-tactic-title {
+  color: var(--muted);
+  font-weight: 900;
+  font-size: 0.9rem;
+}
+
+.net-tactic-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 10px;
+}
+
+.tactic-option {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.14);
+  color: var(--text);
+  border-radius: 18px;
+  padding: 14px;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+}
+
+.tactic-option strong {
+  font-size: 1rem;
+}
+
+.tactic-option small {
+  color: var(--muted);
+}
+
+.tactic-option.active {
+  border-color: rgba(182,255,111,0.50);
+  background: linear-gradient(135deg, rgba(182,255,111,0.22), rgba(111,255,211,0.12));
+  box-shadow: inset 0 0 0 1px rgba(182,255,111,0.12);
+}
+
+@media (max-width: 760px) {
+  .net-tactic-row {
+    grid-template-columns: 1fr;
+  }
+
+  .tactic-option {
+    padding: 12px 14px;
+  }
+}
