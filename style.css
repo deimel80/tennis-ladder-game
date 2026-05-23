@@ -2012,3 +2012,85 @@ tr:last-child td {
   color: var(--text);
   box-shadow: inset 0 0 0 1px rgba(182,255,111,0.12);
 }
+
+
+/* v0.10.0 simplified mobile-first shot choices */
+.simple-shot-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.simple-shot-option {
+  min-height: 112px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.shot-card-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.shot-card-topline strong {
+  font-size: clamp(1.1rem, 2.4vw, 1.45rem);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.shot-card-topline em {
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: var(--accent);
+  border: 1px solid rgba(182,255,111,0.22);
+  background: rgba(182,255,111,0.10);
+  padding: 4px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.shot-card-label {
+  color: var(--text);
+  font-weight: 850;
+  opacity: 0.95;
+}
+
+.simple-shot-option small {
+  color: var(--muted);
+  line-height: 1.35;
+  font-size: 0.86rem;
+}
+
+.simple-shot-option.active .shot-card-topline em {
+  background: rgba(7,19,13,0.82);
+  border-color: rgba(7,19,13,0.25);
+  color: #dfffbc;
+}
+
+@media (max-width: 760px) {
+  .simple-shot-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .simple-shot-option {
+    min-height: 82px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    gap: 6px;
+  }
+
+  .shot-card-topline strong {
+    font-size: 1.25rem;
+  }
+
+  .shot-card-label {
+    font-size: 0.92rem;
+  }
+
+  .simple-shot-option small {
+    font-size: 0.82rem;
+  }
+}

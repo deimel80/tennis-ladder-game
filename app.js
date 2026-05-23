@@ -1,37 +1,43 @@
-const VERSION = "0.9.3";
+const VERSION = "0.10.0";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
 
 const SERVES = [
-  { id: "slice_wide", label: "Slice außen", family: "slice", zone: "wide" },
-  { id: "slice_middle", label: "Slice Mitte", family: "slice", zone: "middle" },
-  { id: "kick_middle", label: "Kick Mitte", family: "kick", zone: "middle" },
-  { id: "kick_body", label: "Kick auf Körper", family: "kick", zone: "body" },
-  { id: "flat_t", label: "Glatt durch die Mitte", family: "flat", zone: "middle" },
-  { id: "body", label: "Hart auf Körper", family: "flat", zone: "body" }
+  { id: "slice_middle", label: "Sicher", short: "Sicher", hint: "Hohe Quote, Ballwechsel starten.", tag: "Stabil" },
+  { id: "slice_wide", label: "Slice außen", short: "Außen", hint: "Zieht den Gegner aus dem Feld.", tag: "Winkel" },
+  { id: "kick_middle", label: "Kick Rückhand", short: "Kick", hint: "Springt hoch und gibt dir Zeit.", tag: "Aufbau" },
+  { id: "body", label: "Auf den Körper", short: "Körper", hint: "Nimmt dem Returner den Schwung.", tag: "Druck" },
+  { id: "flat_t", label: "Flat Mitte", short: "Flat", hint: "Direkt und hart, aber riskanter.", tag: "Power" }
+];
+
+const SERVE_READS = [
+  { id: "slice_wide", label: "Außen lesen", short: "Außen", hint: "Du deckst den Winkel ab.", tag: "Read" },
+  { id: "body", label: "Körper lesen", short: "Körper", hint: "Du stellst dich eng an den Ball.", tag: "Read" },
+  { id: "flat_t", label: "Mitte lesen", short: "Mitte", hint: "Du erwartest Tempo durch die Mitte.", tag: "Read" },
+  { id: "kick_middle", label: "Kick lesen", short: "Kick", hint: "Du erwartest hohen Absprung.", tag: "Read" }
 ];
 
 const BASELINE_SHOTS = [
-  { id: "topspin_cross", label: "Topspin cross" },
-  { id: "topspin_line", label: "Topspin longline" },
-  { id: "slice_short", label: "Slice kurz" },
-  { id: "drop_shot", label: "Stoppball" },
-  { id: "lob", label: "Lob" },
-  { id: "approach_net", label: "Angriff ans Netz" }
+  { id: "topspin_cross", label: "Sicher cross", short: "Cross", hint: "Stabiler Ball, wenig Fehler.", tag: "Sicher" },
+  { id: "topspin_line", label: "Longline Angriff", short: "Longline", hint: "Direkt Druck machen.", tag: "Angriff" },
+  { id: "slice_short", label: "Slice tief", short: "Slice", hint: "Tempo rausnehmen und tief halten.", tag: "Taktik" },
+  { id: "drop_shot", label: "Stoppball", short: "Stopp", hint: "Überraschung, wenn der Gegner tief steht.", tag: "Trick" },
+  { id: "lob", label: "Lob", short: "Lob", hint: "Zeit gewinnen oder Netzspieler überspielen.", tag: "Hoch" },
+  { id: "approach_net", label: "Ans Netz", short: "Netz", hint: "Nach vorne gehen und Punkt verkürzen.", tag: "Vor" }
 ];
 
 const NET_SHOTS = [
-  { id: "volley", label: "Volley wegdrücken" },
-  { id: "stop_volley", label: "Stopp-Volley" },
-  { id: "smash", label: "Smash" }
+  { id: "volley", label: "Sicherer Volley", short: "Volley", hint: "Kontrolliert ins offene Feld.", tag: "Sicher" },
+  { id: "stop_volley", label: "Stopp-Volley", short: "Stopp", hint: "Kurz ablegen, wenn der Gegner hinten steht.", tag: "Touch" },
+  { id: "smash", label: "Smash", short: "Smash", hint: "Punkt abschließen, wenn der Ball hoch kommt.", tag: "Finish" }
 ];
 
 const PASSING_SHOTS = [
-  { id: "passing_cross", label: "Passierball cross" },
-  { id: "passing_line", label: "Passierball longline" },
-  { id: "lob", label: "Lob über Netzspieler" },
-  { id: "topspin_hard", label: "Hart auf die Füße" }
+  { id: "passing_cross", label: "Passierball cross", short: "Cross", hint: "Sicherer Winkel am Netzspieler vorbei.", tag: "Pass" },
+  { id: "passing_line", label: "Passierball longline", short: "Line", hint: "Direkter Winner-Versuch.", tag: "Risiko" },
+  { id: "lob", label: "Lob über Gegner", short: "Lob", hint: "Über den Netzspieler hinweg.", tag: "Hoch" },
+  { id: "topspin_hard", label: "Auf die Füße", short: "Füße", hint: "Schwerer Volley für den Gegner.", tag: "Druck" }
 ];
 
 const app = document.getElementById("app");
@@ -1473,8 +1479,8 @@ function renderServeRead(match) {
     title: "Welchen Aufschlag erwartest du?",
     description: "Je genauer du den Aufschlag liest, desto stärker fällt dein Return aus.",
     inputId: "returnRead",
-    choices: SERVES,
-    defaultChoiceId: SERVES[0]?.id,
+    choices: SERVE_READS,
+    defaultChoiceId: SERVE_READS[0]?.id,
     riskId: "returnRisk",
     riskDefault: 82,
     buttonLabel: "Return spielen",
@@ -1532,14 +1538,25 @@ function renderChoiceStage({ kicker, title, description, inputId, choices, defau
 }
 
 function renderChoiceButtons(inputId, choices, defaultChoiceId) {
-  const normalized = (choices || []).map(choice => ({ id: choice.id, label: choice.label }));
+  const normalized = (choices || []).map(choice => ({
+    id: choice.id,
+    label: choice.label,
+    short: choice.short || choice.label,
+    hint: choice.hint || "",
+    tag: choice.tag || ""
+  }));
   const defaultId = defaultChoiceId || normalized[0]?.id || "";
   return `
     <input type="hidden" id="${inputId}" value="${defaultId}" />
-    <div class="shot-grid" data-choice-group="${inputId}">
+    <div class="shot-grid simple-shot-grid" data-choice-group="${inputId}">
       ${normalized.map(choice => `
-        <button type="button" class="shot-option ${choice.id === defaultId ? "active" : ""}" data-choice-target="${inputId}" data-choice-value="${choice.id}">
-          <span>${escapeHtml(choice.label)}</span>
+        <button type="button" class="shot-option simple-shot-option ${choice.id === defaultId ? "active" : ""}" data-choice-target="${inputId}" data-choice-value="${choice.id}" aria-pressed="${choice.id === defaultId ? "true" : "false"}">
+          <span class="shot-card-topline">
+            <strong>${escapeHtml(choice.short)}</strong>
+            ${choice.tag ? `<em>${escapeHtml(choice.tag)}</em>` : ""}
+          </span>
+          <span class="shot-card-label">${escapeHtml(choice.label)}</span>
+          ${choice.hint ? `<small>${escapeHtml(choice.hint)}</small>` : ""}
         </button>`).join("")}
     </div>`;
 }
@@ -1566,7 +1583,9 @@ function syncChoiceButtons() {
     const target = button.dataset.choiceTarget;
     const input = document.getElementById(target);
     if (!input) return;
-    button.classList.toggle('active', button.dataset.choiceValue === input.value);
+    const isActive = button.dataset.choiceValue === input.value;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
   });
   document.querySelectorAll('[data-risk-target]').forEach(button => {
     const target = button.dataset.riskTarget;
