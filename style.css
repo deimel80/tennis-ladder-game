@@ -2569,3 +2569,22 @@ tr:last-child td {
     font-size: 0.86rem;
   }
 }
+
+
+/* v0.12.0 admin delete management */
+.admin-player-row .btn-row {
+  justify-content: flex-end;
+}
+
+.admin-player-row .btn[disabled] {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 760px) {
+  .admin-player-row .btn-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+}

@@ -1,4 +1,4 @@
-const VERSION = "0.11.2";
+const VERSION = "0.12.0";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -291,6 +291,42 @@ class RemoteStore {
     });
     if (error) throw error;
     return normalizePlayer(data);
+  }
+
+  async adminDeletePlayer(playerId) {
+    const { data, error } = await this.client.rpc("admin_delete_player", {
+      p_session_token: state.session?.token,
+      p_player_id: playerId
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async adminDeleteTournament(tournamentId) {
+    const { data, error } = await this.client.rpc("admin_delete_tournament", {
+      p_session_token: state.session?.token,
+      p_tournament_id: tournamentId
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async adminDeleteMatch(matchId) {
+    const { data, error } = await this.client.rpc("admin_delete_match", {
+      p_session_token: state.session?.token,
+      p_match_id: matchId
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async adminDeleteLiveMatch(liveMatchId) {
+    const { data, error } = await this.client.rpc("admin_delete_live_match", {
+      p_session_token: state.session?.token,
+      p_live_match_id: liveMatchId
+    });
+    if (error) throw error;
+    return data;
   }
 
   async getPlayerProfile(playerId) {
@@ -1151,7 +1187,7 @@ function renderLobby() {
   } else if (activePage === "matches") {
     mainContent = `${renderNotificationPanel(notifications)}<div class="card"><div class="card-title-row"><div><h2>Live-Spiele</h2><p class="muted">Laufende Matches, bei denen du beteiligt bist.</p></div><button class="btn ghost" data-action="refresh">Aktualisieren</button></div>${renderLiveMatches(liveMatches, currentId)}</div><div class="card"><div class="card-title-row"><div><h2>Forderungen</h2><p class="muted">Ranglistenspiele laufen über Fordern → Annehmen → Live-Spiel starten.</p></div></div>${renderChallenges(challenges, currentId)}</div>`;
   } else if (activePage === "admin" && isAdmin) {
-    mainContent = `${renderAdminPanel(pendingPlayers, players)}`;
+    mainContent = `${renderAdminPanel(pendingPlayers, players, tournaments, recentMatches, liveMatches)}`;
   } else if (activePage === "ranking") {
     mainContent = `<div class="card"><div class="card-title-row"><div><h2>Rangliste</h2><p class="muted">Forderungen sind ranglistenrelevant, Kurzspiele nicht.</p></div><button class="btn ghost" data-action="refresh">Aktualisieren</button></div>${renderRankingTable(players, currentId)}</div>`;
   } else if (activePage === "profile") {
@@ -1187,7 +1223,7 @@ function renderLobby() {
       <aside class="grid">${renderProfileSummary(current)}${activePage !== "start" ? renderNotificationPanel(notifications, true) : ""}${activePage === "start" ? renderRulesCard() : ""}<div class="card compact"><h2>Letzte Matches</h2>${renderRecentMatches(recentMatches)}</div></aside>
     </section>`;
 }
-function renderAdminPanel(pendingPlayers, players = []) {
+function renderAdminPanel(pendingPlayers, players = [], tournaments = [], recentMatches = [], liveMatches = []) {
   return `
     <div class="grid">
       <div class="card">
@@ -1195,10 +1231,30 @@ function renderAdminPanel(pendingPlayers, players = []) {
         ${!pendingPlayers.length ? `<p class="muted">Keine offenen Freigaben.</p>` : `<ul class="challenge-list">${pendingPlayers.map(player => `
           <li class="challenge-item"><div class="challenge-title"><span>${escapeHtml(player.display_name)}</span><span class="status open">wartet</span></div><p class="muted small">Noch nicht in der Rangliste. Freigabe hängt ihn hinten an.</p><div class="btn-row"><button class="btn primary" data-action="approve-player" data-player-id="${player.id}">Freigeben</button><button class="btn danger" data-action="reject-player" data-player-id="${player.id}">Ablehnen/löschen</button></div></li>`).join("")}</ul>`}
       </div>
+
       <div class="card">
-        <div class="card-title-row"><div><h2>Admin: Spieler verwalten</h2><p class="muted">Namen ändern oder Profil öffnen.</p></div></div>
+        <div class="card-title-row"><div><h2>Admin: Spieler verwalten</h2><p class="muted">Namen ändern, Profil öffnen oder Testspieler vollständig entfernen.</p></div></div>
         <div class="admin-player-grid">
-          ${players.map(player => `<div class="admin-player-row"><strong>${escapeHtml(player.display_name)}</strong><span class="muted small">Rang ${player.rank_position}</span><div class="btn-row"><button class="btn ghost" data-action="open-profile" data-player-id="${player.id}">Profil</button><button class="btn" data-action="prompt-rename-player" data-player-id="${player.id}" data-player-name="${escapeHtml(player.display_name)}">Name ändern</button></div></div>`).join("") || `<p class="muted">Keine Spieler vorhanden.</p>`}
+          ${players.map(player => `<div class="admin-player-row"><strong>${escapeHtml(player.display_name)}</strong><span class="muted small">Rang ${player.rank_position}${player.is_admin ? " · Admin" : ""}</span><div class="btn-row"><button class="btn ghost" data-action="open-profile" data-player-id="${player.id}">Profil</button><button class="btn" data-action="prompt-rename-player" data-player-id="${player.id}" data-player-name="${escapeHtml(player.display_name)}">Name ändern</button><button class="btn danger" data-action="admin-delete-player" data-player-id="${player.id}" data-player-name="${escapeHtml(player.display_name)}" ${player.is_admin ? "disabled title=\"Admins können nicht hier gelöscht werden\"" : ""}>Löschen</button></div></div>`).join("") || `<p class="muted">Keine Spieler vorhanden.</p>`}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title-row"><div><h2>Admin: Turniere löschen</h2><p class="muted">Entfernt das Turnier inklusive Tableau, Anmeldungen und zugehöriger Turniermatches.</p></div><span class="pill">${tournaments.length}</span></div>
+        <div class="admin-player-grid">
+          ${tournaments.map(t => `<div class="admin-player-row"><strong>${escapeHtml(t.name)}</strong><span class="muted small">${tournamentStatusLabel(t.status)} · ${formatDate(t.starts_at)} · ${t.participant_count || 0}/${t.max_players}</span><div class="btn-row"><button class="btn danger" data-action="admin-delete-tournament" data-tournament-id="${t.id}" data-tournament-name="${escapeHtml(t.name)}">Turnier löschen</button></div></div>`).join("") || `<p class="muted">Keine Turniere vorhanden.</p>`}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title-row"><div><h2>Admin: Spiele löschen</h2><p class="muted">Laufende Spiele werden abgebrochen/entfernt. Gespeicherte Matches werden aus der Historie gelöscht; Statistiken werden danach neu berechnet.</p></div></div>
+        <h3 class="small-heading">Laufende Spiele</h3>
+        <div class="admin-player-grid">
+          ${liveMatches.map(match => `<div class="admin-player-row"><strong>${escapeHtml(match.player_a_name)} ${match.score_a}:${match.score_b} ${escapeHtml(match.player_b_name)}</strong><span class="muted small">${matchTypeLabel(match.match_type)} · ${phaseLabel(match.phase)} · ${formatDate(match.updated_at)}</span><div class="btn-row"><button class="btn ghost" data-action="open-live" data-live-match-id="${match.id}">Öffnen</button><button class="btn danger" data-action="admin-delete-live-match" data-live-match-id="${match.id}">Laufendes Spiel löschen</button></div></div>`).join("") || `<p class="muted small">Keine laufenden Spiele.</p>`}
+        </div>
+        <h3 class="small-heading">Gespeicherte Spiele</h3>
+        <div class="admin-player-grid">
+          ${recentMatches.map(match => `<div class="admin-player-row"><strong>${escapeHtml(match.player_a_name)} ${match.score_a}:${match.score_b} ${escapeHtml(match.player_b_name)}</strong><span class="muted small">Sieger: ${escapeHtml(match.winner_name)} · ${matchTypeLabel(match.match_type)} · ${formatDate(match.completed_at)}</span><div class="btn-row"><button class="btn danger" data-action="admin-delete-match" data-match-id="${match.id}">Match löschen</button></div></div>`).join("") || `<p class="muted small">Keine gespeicherten Spiele vorhanden.</p>`}
         </div>
       </div>
     </div>`;
@@ -2024,6 +2080,44 @@ app.addEventListener("click", event => {
         await refreshLobby(false);
         render();
         showToast("Spielername geändert.");
+      }
+    }
+
+    if (action === "admin-delete-player") {
+      const name = button.dataset.playerName || "diesen Spieler";
+      if (window.confirm(`Spieler "${name}" wirklich vollständig löschen? Zugehörige Spiele, Forderungen und offene Matches werden entfernt.`)) {
+        await state.store.adminDeletePlayer(playerId);
+        await refreshLobby(false);
+        render();
+        showToast("Spieler gelöscht.");
+      }
+    }
+
+    if (action === "admin-delete-tournament") {
+      const name = button.dataset.tournamentName || "dieses Turnier";
+      if (window.confirm(`Turnier "${name}" wirklich vollständig löschen? Tableau, Anmeldungen und Turniermatches werden entfernt.`)) {
+        await state.store.adminDeleteTournament(tournamentId);
+        await refreshLobby(false);
+        render();
+        showToast("Turnier gelöscht.");
+      }
+    }
+
+    if (action === "admin-delete-match") {
+      if (window.confirm("Dieses gespeicherte Match wirklich löschen? Statistiken werden danach aus der verbleibenden Match-Historie neu berechnet.")) {
+        await state.store.adminDeleteMatch(button.dataset.matchId);
+        await refreshLobby(false);
+        render();
+        showToast("Match gelöscht.");
+      }
+    }
+
+    if (action === "admin-delete-live-match") {
+      if (window.confirm("Dieses laufende Spiel wirklich löschen/abbrechen? Danach blockiert es keine neuen Spiele mehr.")) {
+        await state.store.adminDeleteLiveMatch(liveMatchId);
+        await refreshLobby(false);
+        render();
+        showToast("Laufendes Spiel gelöscht.");
       }
     }
 
