@@ -1,4 +1,4 @@
-const VERSION = "0.11.1";
+const VERSION = "0.11.2";
 const STORAGE_SESSION_KEY = "tennis_ladder_session_v021";
 const WIN_POINTS = 3;
 const TURN_SECONDS = 5 * 60;
@@ -41,11 +41,11 @@ const PASSING_SHOTS = [
 ];
 
 const RALLY_READS = [
-  { id: "topspin_cross", label: "Sicher erwarten", short: "Sicher", hint: "Du rechnest mit einem stabilen Ball.", tag: "Read" },
-  { id: "topspin_line", label: "Angriff erwarten", short: "Angriff", hint: "Du deckst den Druckball ab.", tag: "Read" },
-  { id: "drop_shot", label: "Kurz erwarten", short: "Kurz", hint: "Du bist bereit für Stoppball oder kurzen Ball.", tag: "Read" },
-  { id: "lob", label: "Lob erwarten", short: "Lob", hint: "Du stellst dich auf einen hohen Ball ein.", tag: "Read" },
-  { id: "approach_net", label: "Netzangriff erwarten", short: "Netz", hint: "Du rechnest damit, dass der Gegner vorrückt.", tag: "Read" }
+  { id: "topspin_cross", label: "Sicher verteidigen", short: "Sicher", hint: "Du bleibst stabil und bringst den Ball zurück.", tag: "Reaktion" },
+  { id: "topspin_line", label: "Angriff abfangen", short: "Angriff", hint: "Du stellst dich auf Tempo und Druck ein.", tag: "Reaktion" },
+  { id: "drop_shot", label: "Auf Stoppball achten", short: "Kurz", hint: "Du reagierst früh auf einen kurzen Ball.", tag: "Reaktion" },
+  { id: "lob", label: "Hoch absichern", short: "Hoch", hint: "Du sicherst den hohen Ball und Lob ab.", tag: "Reaktion" },
+  { id: "approach_net", label: "Passierball / Lob vorbereiten", short: "Netz", hint: "Du rechnest mit Netzangriff und suchst Passierball oder Lob.", tag: "Reaktion" }
 ];
 
 const NET_READS = [
@@ -1604,8 +1604,8 @@ function renderRallyRead(match) {
   const reads = availableReadsForLive(match, activeSide);
   return renderChoiceStage({
     kicker: "Lesen & Reagieren",
-    title: "Was erwartest du?",
-    description: "Du musst nicht jeden Schlag exakt erraten. Lies die taktische Idee: sicher, Angriff, kurz, Lob oder Netzangriff.",
+    title: "Reaktion wählen",
+    description: "Wähle deine Reaktion auf den gegnerischen Schlag. Wenn der Punkt weiterläuft, bekommst du danach selbst die Schlagauswahl.",
     inputId: "rallyRead",
     choices: reads,
     defaultChoiceId: reads[0]?.id,
@@ -1785,7 +1785,7 @@ function phaseLabel(phase) {
     serve_attack: "Aufschlag wählen",
     serve_read: "Return einstellen",
     rally_attack: "Schlag wählen",
-    rally_read: "Gegnerschlag lesen",
+    rally_read: "Reaktion wählen",
     point_result: "Punkt entschieden",
     match_over: "Match beendet"
   };
